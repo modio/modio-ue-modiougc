@@ -1,0 +1,34 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "ModioUGC",
+	"Description": "UGC creation, with runtime discovery and loading support by mod.io",
+	"Category": "Other",
+	"CreatedBy": "mod.io",
+	"CreatedByURL": "https://mod.io",
+	"DocsURL": "https://docs.mod.io/unreal/modio-ugc/overview/",
+	"MarketplaceURL": "",
+	"SupportURL": "http://discord.mod.io",
+	"CanContainContent": true,
+	"IsExperimentalVersion": true,
+	"Installed": true,
+	"Modules": [
+		{
+			"Name": "ModioUGC",
+			"Type": "Runtime",
+			"LoadingPhase": "PreDefault"
+		},
+		{
+			"Name": "ModioUGCEditor",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "Modio",
+			"Enabled": true
+		}
+	]
+}

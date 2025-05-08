@@ -1,0 +1,14 @@
+---
+id: troubleshooting
+title: Troubleshooting
+slug: /unreal/modio-ugc/troubleshooting/
+custom_edit_url: https://github.com/modio/modio-ue4-internal/tree/main/Plugins/ModioUGC/Doc/doc_root/en-us/modio-ugc/troubleshooting.mdx
+---
+
+To verify if the UGC files were packaged correctly, ensure the following:
+
+- The UGC files (`.pak` and, if Io Store is used, `.ucas` and `.utoc`) have a reasonable size, based on the assets included in the mod.
+  - If you notice that these files are unusually small, check that both `Cook everything in the project content directory (ignore list of maps below)` and `Cook only maps (this only affects cookall)` options are turned off in your cooking settings. This is necessary for the UGC content to be cooked and staged during the DLC cook phase instead of the base game cook.
+- Inside the `.pak` file, check that an `AssetRegistry.bin` file exists. This file should contain all the packaged assets listed for the mod.
+- Ensure that the engine version used to build the UGC files matches the version of the project where you intend to mount them. Using mismatched versions can lead to compatibility issues during mounting.
+- Including non-project content could cause packaging failures.
