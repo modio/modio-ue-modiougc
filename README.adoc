@@ -22,6 +22,7 @@ This plugin requires the core mod.io plugin to be installed alongside it. Suppor
 |UE5.3 | Current
 |UE5.4 | Current
 |UE5.5 | Current
+|UE5.6 | Current
 |===
 
 ### Platform compatability
