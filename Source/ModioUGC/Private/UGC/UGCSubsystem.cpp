@@ -593,7 +593,7 @@ void UUGCSubsystem::EnumerateAllUGCPackages(const UGCPackageEnumeratorFn& Enumer
 		// @TODO: Refactor so we can parameterize whether or not to include disabled packages
 		if (UGCSettings->bEnableModEnableDisableFeature && ModEnabledStateProvider)
 		{
-			Algo::AllOf(UGCPackages,
+			(void)Algo::AllOf(UGCPackages,
 						[Enumerator, ModEnabledStateProvider = ModEnabledStateProvider](const FUGCPackage& Package) {
 							// Only packages with an associated mod ID are supported by enable/disable
 							if (Package.ModID.IsSet())
@@ -614,7 +614,7 @@ void UUGCSubsystem::EnumerateAllUGCPackages(const UGCPackageEnumeratorFn& Enumer
 						});
 			return;
 		}
-		Algo::AllOf(UGCPackages, Enumerator);
+		(void)Algo::AllOf(UGCPackages, Enumerator);
 	}
 #endif
 }
