@@ -22,7 +22,9 @@ public class ModioUGCEditor : ModuleRules
             new string[]
             {
                 "Core",
-                "PluginBrowser"
+                "PluginBrowser",
+                "Modio",
+                "ModioEditor"
             }
         );
 

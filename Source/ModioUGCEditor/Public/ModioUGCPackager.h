@@ -43,10 +43,11 @@ public:
 
 protected:
 	/**
-	 * Corrects the UPlugin file (sets ExplicitlyLoaded to true).
-	 * Intended to be used after packaging a plugin as DLC, to correct the staged UPlugin file without modifying the
-	 * original one. Currently, it only sets ExplicitlyLoaded to true, which is required for the packaged mod to be
-	 * correctly unloaded.
+	 * Corrects the UPlugin file by setting ExplicitlyLoaded to true and updating the EngineVersion.
+	 * 
+	 * This function is designed to be used after packaging a plugin as DLC to correct the staged 
+	 * UPlugin file without modifying the original source file. Setting ExplicitlyLoaded to true, 
+	 * is required for the packaged mod to be correctly unloaded.
 	 *
 	 * @param UPluginFilePath The path to the UPlugin file.
 	 * @return True if the UPlugin file was corrected (or didn't need to be corrected), false otherwise.

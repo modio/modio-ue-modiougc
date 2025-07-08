@@ -1003,6 +1003,10 @@ bool FModioUGCPackager::CorrectUPluginFile(const FString& UPluginFilePath)
 	}
 
 	JsonObject->SetBoolField(TEXT("ExplicitlyLoaded"), true);
+
+	FString CurrentEngineVersion = FEngineVersion::Current().ToString();
+	JsonObject->SetStringField(TEXT("EngineVersion"), CurrentEngineVersion);
+
 	FString NewText;
 	{
 		TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&NewText);

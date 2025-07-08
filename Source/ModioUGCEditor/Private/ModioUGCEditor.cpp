@@ -21,6 +21,8 @@
 
 #include "UGC/Types/UGCPackage.h"
 #include "UGC/UGCSubsystem.h"
+#include "ModioEditorUtilityFunctions.h"
+#include "ModioUGCEditorSettings.h"
 
 DEFINE_LOG_CATEGORY(ModioUGCEditor);
 
@@ -111,6 +113,9 @@ void FModioUGCEditorModule::StartupModule()
 		// bEnableUGCProviderInEditor is disabled and editor restarted
 		GAllowCookedDataInEditorBuilds = 1;
 	}
+
+	UModioEditorUtilityFunctions::AddGettingStartedWidgetEntries(
+		GetMutableDefault<UModioUGCEditorSettings>()->GettingStartedEntries);
 
 	UE_LOG(ModioUGCEditor, Display, TEXT("mod.io UGC Editor module loaded."));
 }

@@ -20,13 +20,17 @@
 #include "Algo/AllOf.h"
 #include "AssetRegistry/AssetRegistryState.h"
 #include "Async/Async.h"
+#include "Dom/JsonObject.h"
 #include "Engine/AssetManager.h"
 #include "Engine/Engine.h"
 #include "HAL/PlatformFileManager.h"
 #include "IPlatformFilePak.h"
 #include "Interfaces/IPluginManager.h"
+#include "Misc/EngineVersion.h"
 #include "Misc/FileHelper.h"
 #include "ModioUGCSettings.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 #include "Serialization/MemoryReader.h"
 #include "ShaderCodeLibrary.h"
 #include "Subsystems/SubsystemCollection.h"
@@ -226,7 +230,6 @@ void UUGCSubsystem::RefreshUGC()
 	const FModUGCPathMap UGCPathMap = IUGCProvider::Execute_GetInstalledUGCPaths(UGCProvider.GetObject());
 	for (const TPair<FString, FGenericModID>& UGCPath : UGCPathMap.PathToModIDMap)
 	{
-		UE_LOG(LogModioUGC, Log, TEXT("Registering UGC plugin from %s"), *UGCPath.Key);
 		AddUGCFromPath(UGCPath.Key);
 	}
 
@@ -355,17 +358,150 @@ bool UUGCSubsystem::UnloadUGC(FUGCPackage Package)
 	return false;
 }
 
+bool UUGCSubsystem::UnloadUGCByModID(FGenericModID ModID)
+{
+#if UGC_SUPPORTED_PLATFORM
+	FUGCPackage Package;
+	if (GetUGCPackageByModID(ModID, Package))
+	{
+		return UnloadUGC(Package);
+	}
+	else
+	{
+		UE_LOG(LogModioUGC, Warning, TEXT("Failed to unload UGC package by ModID since it was not found"));
+
+		// Still return true, as the package is already in unloaded state
+		return true;
+	}
+#endif
+	return false;
+}
+
+bool UUGCSubsystem::IsUGCCompatible(const FString& UPluginFilePath)
+{
+#if UGC_SUPPORTED_PLATFORM
+	const UModioUGCSettings* UGCSettings = GetDefault<UModioUGCSettings>();
+	if (!(UGCSettings && UGCSettings->bPerformUGCCheckVersion))
+	{
+		// If we don't want to check the version, we can skip the rest of the checks
+		return true;
+	}
+
+	// Read the uplugin file
+	FString UPluginContent;
+	if (!FFileHelper::LoadFileToString(UPluginContent, *UPluginFilePath))
+	{
+		UE_LOG(LogModioUGC, Warning, TEXT("Failed to read uplugin file for compatibility check: %s"), *UPluginFilePath);
+		return false;
+	}
+
+	// Parse JSON
+	TSharedPtr<FJsonObject> JsonObject;
+	TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(UPluginContent);
+	if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
+	{
+		UE_LOG(LogModioUGC, Warning, TEXT("Failed to parse uplugin JSON for compatibility check: %s"),
+			   *UPluginFilePath);
+		return false;
+	}
+
+	// Check if engine version field exists
+	FString UGCEngineVersionString;
+	FEngineVersion UGCEngineVersion;
+	if (!JsonObject->TryGetStringField(TEXT("EngineVersion"), UGCEngineVersionString))
+	{
+		UE_LOG(LogModioUGC, Warning, TEXT("UGC plugin missing engine version info: %s"), *UPluginFilePath);
+		return false;
+	}
+	if (!FEngineVersion::Parse(UGCEngineVersionString, UGCEngineVersion))
+	{
+		UE_LOG(LogModioUGC, Warning, TEXT("Failed to parse engine version from uplugin: %s"), *UGCEngineVersionString);
+		return false;
+	}
+
+	FEngineVersion CurrentEngineVersion = FEngineVersion::Current();
+	UE_LOG(LogModioUGC, VeryVerbose, TEXT("Checking UGC plugin %s Engine version. Project: %s, Plugin: %s."),
+		   *UPluginFilePath, *CurrentEngineVersion.ToString(), *UGCEngineVersionString);
+
+	FString EngineComponent = CurrentEngineVersion.ToString(EVersionComponent::Major);
+	FString UGCComponent = UGCEngineVersion.ToString(EVersionComponent::Major);
+	if (UGCSettings->bPerformUGCCheckVersionComponentMajor && (EngineComponent != UGCComponent))
+	{
+		UE_LOG(LogModioUGC, Warning, TEXT("Major Engine Version mismatch. Project: %s, Plugin: %s."), *EngineComponent,
+			   *UGCComponent);
+		return false;
+	}
+
+	EngineComponent = CurrentEngineVersion.ToString(EVersionComponent::Minor);
+	UGCComponent = UGCEngineVersion.ToString(EVersionComponent::Minor);
+	if (UGCSettings->bPerformUGCCheckVersionComponentMinor && (EngineComponent != UGCComponent))
+	{
+		UE_LOG(LogModioUGC, Warning, TEXT("Minor Engine Version mismatch. Project: %s, Plugin: %s."), *EngineComponent,
+			   *UGCComponent);
+		return false;
+	}
+
+	EngineComponent = CurrentEngineVersion.ToString(EVersionComponent::Patch);
+	UGCComponent = UGCEngineVersion.ToString(EVersionComponent::Patch);
+	if (UGCSettings->bPerformUGCCheckVersionComponentPatch && (EngineComponent != UGCComponent))
+	{
+		UE_LOG(LogModioUGC, Warning, TEXT("Patch Engine Version mismatch. Project: %s, Plugin: %s."), *EngineComponent,
+			   *UGCComponent);
+		return false;
+	}
+
+	EngineComponent = CurrentEngineVersion.ToString(EVersionComponent::Changelist);
+	UGCComponent = UGCEngineVersion.ToString(EVersionComponent::Changelist);
+	if (UGCSettings->bPerformUGCCheckVersionComponentChangelist && (EngineComponent != UGCComponent))
+	{
+		UE_LOG(LogModioUGC, Warning, TEXT("Changelist Engine Version mismatch. Project: %s, Plugin: %s."),
+			   *EngineComponent, *UGCComponent);
+		return false;
+	}
+
+	EngineComponent = CurrentEngineVersion.ToString(EVersionComponent::Branch);
+	UGCComponent = UGCEngineVersion.ToString(EVersionComponent::Branch);
+	if (UGCSettings->bPerformUGCCheckVersionVersionComponentBranch && (EngineComponent != UGCComponent))
+	{
+		UE_LOG(LogModioUGC, Warning, TEXT("Branch Engine Version mismatch. Project: %s, Plugin: %s."), *EngineComponent,
+			   *UGCComponent);
+		return false;
+	}
+
+	return true;
+#endif
+	return false;
+}
+
 void UUGCSubsystem::AddUGCFromPath(const FString& Path)
 {
 #if UGC_SUPPORTED_PLATFORM
-	TArray<FString> FileNames;
-	FPlatformFileManager::Get().GetPlatformFile().FindFilesRecursively(FileNames, *Path, TEXT(".uplugin"));
+	UE_LOG(LogModioUGC, Log, TEXT("Searching for UGC plugins at '%s'"), *Path);
+	TArray<FString> PluginPaths;
+	FPlatformFileManager::Get().GetPlatformFile().FindFilesRecursively(PluginPaths, *Path, TEXT(".uplugin"));
 	bool bAddSearchPath = false;
-	for (const FString& PluginFileName : FileNames)
+	for (const FString& PluginPath : PluginPaths)
 	{
-		if (IPluginManager::Get().AddToPluginsList(PluginFileName))
+		// Check compatibility first
+		if (!IsUGCCompatible(PluginPath))
+		{
+			continue;
+		}
+
+		FString PluginName = FPaths::GetBaseFilename(PluginPath);
+		if (TSharedPtr<IPlugin> FoundPlugin = IPluginManager::Get().FindPlugin(PluginName))
+		{
+			UE_LOG(LogModioUGC, Error,
+				   TEXT("The plugin '%s' has already been discovered and enabled (%s). The new attempt using another "
+						"path will not be added (%s)."),
+				   *PluginName, *FoundPlugin->GetBaseDir(), *PluginPath);
+			continue;
+		}
+
+		if (IPluginManager::Get().AddToPluginsList(PluginPath))
 		{
 			bAddSearchPath = true;
+			UE_LOG(LogModioUGC, Log, TEXT("Added UGC plugin '%s' from '%s'"), *PluginName, *PluginPath);
 		}
 	}
 	if (bAddSearchPath)

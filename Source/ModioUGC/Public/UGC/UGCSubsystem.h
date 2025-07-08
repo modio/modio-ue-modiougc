@@ -56,6 +56,14 @@ public:
 	void InitializeUGCProvider(const FOnUGCProviderInitializedDelegate& Handler);
 
 	/**
+	 * Completely unloads UGC by mod ID, cleaning up asset registration and mount point
+	 *
+	 * @param ModID Mod ID of the mod to remove UGC for
+	 */
+	UFUNCTION(BlueprintCallable, Category = "mod.io|UGC")
+	bool UnloadUGCByModID(FGenericModID ModID);
+
+	/**
 	 * Scans for any unregistered UGC plugins and adds them to the internal registry
 	 * Will emit a UGCChanged event if any new UGC plugins were added
 	 */
@@ -88,6 +96,15 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure = false, meta = (DisplayName = "Enumerate All UGC Packages"),
 			  Category = "mod.io|UGC")
 	void K2_EnumerateAllUGCPackages(const FUGCPackageEnumeratorDelegate& Enumerator) const;
+
+
+	/**
+	 * Checks if a UGC is compatible with the current engine version
+	 *
+	 * @param Path The path to a UGC .uplugin, such as "C:\Users\Public\mod.io\6532\mods\4857458\BasicMap.uplugin".
+	 */
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Is UPlugin Compatible"), Category = "mod.io|UGC")
+	bool IsUGCCompatible(const FString& UPluginFilePath);
 
 	/**
 	 * Adds UGC from a path. If successful, the UGC package should be available in discovered plugins

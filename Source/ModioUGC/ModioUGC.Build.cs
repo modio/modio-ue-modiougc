@@ -39,7 +39,8 @@ public class ModioUGC : ModuleRules
                 "PakFile",
                 "RenderCore",
                 "DeveloperSettings",
-                "Projects" // Accessing FEngineVersion
+                "Projects", // Accessing FEngineVersion
+                "Json"
             }
         );
 

@@ -68,6 +68,7 @@ public:
 			  Category = "UGC Provider")
 	bool bEnableUGCProviderInEditor = false;
 #endif
+
 	/**
 	 * @brief Whether we should enable the feature for users being able to enable or disable specific mods,
 	 * persisting that information into their user profile save data so it roams to other devices
@@ -75,4 +76,44 @@ public:
 	 */
 	UPROPERTY(Config, EditAnywhere, meta = (DisplayName = "Enable Mod Enable/Disable support"), Category = "Project")
 	bool bEnableModEnableDisableFeature = false;
+
+	/**
+	 * @brief Whether we should perform a check of the version of Unreal Engine that was used for UGC plugins that are
+	 * loaded against the current version of Unreal Engine being run, or the version that was used to build the game if
+	 * this is a release.
+	 */
+	UPROPERTY(Config, EditAnywhere, meta = (DisplayName = "Enable UGC version compatibility check"),
+			  Category = "Version Compatibility")
+	bool bPerformUGCCheckVersion = true;
+
+	/**
+	 * @brief Include the Major Version Component in the UGC version compatibility check.
+	 */
+	UPROPERTY(Config, EditAnywhere, meta = (DisplayName = "Check Component Major"), Category = "Version Compatibility")
+	bool bPerformUGCCheckVersionComponentMajor = true;
+
+	/**
+	 * @brief Include the `Minor` Version Component in the UGC version compatibility check.
+	 */
+	UPROPERTY(Config, EditAnywhere, meta = (DisplayName = "Check Component Minor"), Category = "Version Compatibility")
+	bool bPerformUGCCheckVersionComponentMinor = true;
+
+	/**
+	 * @brief Include the `Patch` Version Component in the UGC version compatibility check.
+	 */
+	UPROPERTY(Config, EditAnywhere, meta = (DisplayName = "Check Component Patch"), Category = "Version Compatibility")
+	bool bPerformUGCCheckVersionComponentPatch = false;
+
+	/**
+	 * @brief Include the `Changelist` Version Component in the UGC version compatibility check.
+	 */
+	UPROPERTY(Config, EditAnywhere, meta = (DisplayName = "Check Component Changelist"),
+			  Category = "Version Compatibility")
+	bool bPerformUGCCheckVersionComponentChangelist = false;
+
+	/**
+	 * @brief Include the `Branch` Version Component in the UGC version compatibility check.
+	 */
+	UPROPERTY(Config, EditAnywhere, meta = (DisplayName = "Check Component Branch"), Category = "Version Compatibility")
+	bool bPerformUGCCheckVersionVersionComponentBranch = false;
 };
