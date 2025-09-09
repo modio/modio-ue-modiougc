@@ -63,7 +63,8 @@ FPakPlatformFile* FScopedPlatformPakFileOverride::operator->() const
 	return PakPlatformFile;
 }
 
-FUGCPackage::FUGCPackage(const TSharedRef<IPlugin> Plugin, TOptional<FGenericModID> ModID /*= {}*/)
+FUGCPackage::FUGCPackage(const TSharedRef<IPlugin> Plugin, TOptional<FGenericModID> ModID /*= {}*/,
+						 TFunction<FString(FString&)> FilePathSanitizationFn /*= nullptr*/)
 	: AssociatedPlugin(Plugin),
 	  ModID(ModID)
 {
@@ -72,6 +73,12 @@ FUGCPackage::FUGCPackage(const TSharedRef<IPlugin> Plugin, TOptional<FGenericMod
 	DescriptorPath = Plugin->GetDescriptorFileName();
 	PackagePath = *Plugin->GetMountedAssetPath().LeftChop(1);
 	ContentPath = *Plugin->GetContentDir();
+	if (FilePathSanitizationFn)
+	{
+		DescriptorPath = FilePathSanitizationFn(DescriptorPath);
+		PackagePath = FilePathSanitizationFn(PackagePath);
+		ContentPath = FilePathSanitizationFn(ContentPath);
+	}
 	EngineVersion = *Plugin->GetDescriptor().EngineVersion;
 	Author = *Plugin->GetDescriptor().CreatedBy;
 	Description = *Plugin->GetDescriptor().Description;

@@ -312,7 +312,7 @@ bool UUGCSubsystem::LoadUGC(TSharedPtr<IPlugin> LoadedPlugin, TOptional<FGeneric
 			GetModMountPoint(LoadedPlugin, RootPath, ContentPath);
 
 			FPackageName::RegisterMountPoint(RootPath, ContentPath);
-			FUGCPackage ModPackage {LoadedPlugin.ToSharedRef(), RawModID};
+			FUGCPackage ModPackage {LoadedPlugin.ToSharedRef(), RawModID, FilePathSanitizationFn};
 
 			// If we failed during the package object creation, unmount this piece of UGC straight away
 			if (ModPackage.MountState != EUGCPackageMountState::EUPMS_Mounted)
@@ -351,6 +351,17 @@ bool UUGCSubsystem::UnloadUGC(FUGCPackage Package)
 
 	RegisteredPackagesToPrimaryAssetTypesMap.Remove(Package);
 
+	FText OutFailReason;
+	if (IPluginManager::Get().RemoveFromPluginsList(Package.DescriptorPath, &OutFailReason))
+	{
+		UE_LOG(LogModioUGC, Log, TEXT("Removed UGC plugin '%s' from '%s'"), *Package.FriendlyName,
+			   *Package.DescriptorPath);
+	}
+	else
+	{
+		UE_LOG(LogModioUGC, Warning, TEXT("Failed to remove UGC plugin '%s' from '%s': %s"), *Package.FriendlyName,
+			   *Package.DescriptorPath, *OutFailReason.ToString());
+	}
 	IPluginManager::Get().RefreshPluginsList();
 
 	return true;
@@ -477,31 +488,37 @@ void UUGCSubsystem::AddUGCFromPath(const FString& Path)
 {
 #if UGC_SUPPORTED_PLATFORM
 	UE_LOG(LogModioUGC, Log, TEXT("Searching for UGC plugins at '%s'"), *Path);
-	TArray<FString> PluginPaths;
-	FPlatformFileManager::Get().GetPlatformFile().FindFilesRecursively(PluginPaths, *Path, TEXT(".uplugin"));
+	TArray<FString> PluginFilePaths;
+	FPlatformFileManager::Get().GetPlatformFile().FindFilesRecursively(PluginFilePaths, *Path, TEXT(".uplugin"));
 	bool bAddSearchPath = false;
-	for (const FString& PluginPath : PluginPaths)
+	for (const FString& PluginFilePath : PluginFilePaths)
 	{
+		UE_LOG(LogModioUGC, Log, TEXT("Validating UGC plugin at '%s'"), *PluginFilePath);
 		// Check compatibility first
-		if (!IsUGCCompatible(PluginPath))
+		if (!IsUGCCompatible(PluginFilePath))
 		{
 			continue;
 		}
 
-		FString PluginName = FPaths::GetBaseFilename(PluginPath);
+		FString PluginName = FPaths::GetBaseFilename(PluginFilePath);
+		FString PluginDirectory = FPaths::GetPath(PluginFilePath);
 		if (TSharedPtr<IPlugin> FoundPlugin = IPluginManager::Get().FindPlugin(PluginName))
 		{
+			FString FoundPluginDirectory = FPaths::GetPath(FoundPlugin->GetDescriptorFileName());
+			FString FriendlyName = FoundPlugin->GetFriendlyName();
+			bool bIsEnabled = FoundPlugin.Get()->IsEnabled();
+
 			UE_LOG(LogModioUGC, Error,
-				   TEXT("The plugin '%s' has already been discovered and enabled (%s). The new attempt using another "
-						"path will not be added (%s)."),
-				   *PluginName, *FoundPlugin->GetBaseDir(), *PluginPath);
+				   TEXT("Searched for UGC plugin '%s' ('%s'). Another plugin of the same name was found: (Directory: %s, FriendlyName: %s, Enabled: %s). The existing pluging will be prioritised, and the new one will be ignored."),
+				   *PluginName, *PluginFilePath, *FoundPluginDirectory, *FriendlyName,
+				   bIsEnabled ? TEXT("true") : TEXT("false"));
 			continue;
 		}
 
-		if (IPluginManager::Get().AddToPluginsList(PluginPath))
+		if (IPluginManager::Get().AddToPluginsList(PluginFilePath))
 		{
 			bAddSearchPath = true;
-			UE_LOG(LogModioUGC, Log, TEXT("Added UGC plugin '%s' from '%s'"), *PluginName, *PluginPath);
+			UE_LOG(LogModioUGC, Log, TEXT("Added UGC plugin '%s' from '%s'"), *PluginName, *PluginFilePath);
 		}
 	}
 	if (bAddSearchPath)
@@ -593,7 +610,7 @@ void UUGCSubsystem::EnumerateAllUGCPackages(const UGCPackageEnumeratorFn& Enumer
 		// @TODO: Refactor so we can parameterize whether or not to include disabled packages
 		if (UGCSettings->bEnableModEnableDisableFeature && ModEnabledStateProvider)
 		{
-			Algo::AllOf(UGCPackages,
+			std::ignore = Algo::AllOf(UGCPackages,
 						[Enumerator, ModEnabledStateProvider = ModEnabledStateProvider](const FUGCPackage& Package) {
 							// Only packages with an associated mod ID are supported by enable/disable
 							if (Package.ModID.IsSet())
@@ -614,7 +631,7 @@ void UUGCSubsystem::EnumerateAllUGCPackages(const UGCPackageEnumeratorFn& Enumer
 						});
 			return;
 		}
-		Algo::AllOf(UGCPackages, Enumerator);
+		std::ignore = Algo::AllOf(UGCPackages, Enumerator);
 	}
 #endif
 }
@@ -636,7 +653,7 @@ void UUGCSubsystem::K2_EnumerateAllUGCPackages(const FUGCPackageEnumeratorDelega
 void UUGCSubsystem::UnloadAllUGCPackages()
 {
 	TArray<FUGCPackage> UGCPackagesToUnmount;
-	EnumerateAllUGCPackages([this, &UGCPackagesToUnmount](const FUGCPackage& Package) {
+	EnumerateAllUGCPackages([&UGCPackagesToUnmount](const FUGCPackage& Package) {
 		UGCPackagesToUnmount.Add(Package);
 		return true;
 	});
@@ -822,4 +839,9 @@ void UUGCSubsystem::RemoveModEnabledStateChangeHandler(const FModEnabledStateCha
 void UUGCSubsystem::AddModEnabledStateChangeHandler(const FModEnabledStateChangeHandler& Handler)
 {
 	OnModEnabledStateChanged.AddUnique(Handler);
+}
+
+void UUGCSubsystem::SetFilePathSanitizationFn(TFunction<FString(FString&)> InFunc)
+{
+	FilePathSanitizationFn = MoveTemp(InFunc);
 }

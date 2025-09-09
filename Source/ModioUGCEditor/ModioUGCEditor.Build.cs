@@ -44,7 +44,12 @@ public class ModioUGCEditor : ModuleRules
                 "DeveloperToolSettings",
                 "PakFile",
                 "EditorWidgets",
-                "UATHelper"
+                "UATHelper", 
+                "DesktopWidgets",
+                "PluginUtils",
+                "AssetTools",
+                "GameProjectGeneration",
+                "DesktopPlatform"
             }
         );
     }

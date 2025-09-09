@@ -29,27 +29,7 @@ public:
 
 	//~ Begin UGC Packager and Creator UI
 
-	// Create UGC button callback
-	void CreateUGCButtonClicked();
-
-	// Package UGC button callback
-	void PackageUGCButtonClicked();
-
-	/** Adds the plugin creator as a new toolbar button */
-	void AddUGCCreatorToolbarExtension(FToolBarBuilder& Builder);
-
-	/** Adds the plugin creator as a new menu option */
-	void AddUGCCreatorMenuExtension(FMenuBuilder& Builder);
-
-	/** Adds the plugin packager as a new toolbar button */
-	void AddUGCPackagerToolbarExtension(FToolBarBuilder& Builder);
-
-	/** Adds the plugin packager as a new menu option */
-	void AddUGCPackagerMenuExtension(FMenuBuilder& Builder);
-
 private:
-	TSharedPtr<class FModioUGCCreator> UGCCreator;
-	TSharedPtr<class FModioUGCPackager> UGCPackager;
 	TSharedPtr<class FUICommandList> PluginCommands;
 
 	//~ End UGC Packager and Creator UI

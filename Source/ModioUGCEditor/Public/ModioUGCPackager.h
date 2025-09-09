@@ -21,12 +21,12 @@
 class FModioUGCPackager : public TSharedFromThis<FModioUGCPackager>
 {
 public:
+	DECLARE_DELEGATE_OneParam(FPackagingStatusChanged, bool /*bIsPackaging*/);
+
 	FModioUGCPackager();
 	~FModioUGCPackager();
 
 	void PackagePlugin();
-
-	void ShowPackagerWindow();
 
 	/**
 	 * Cooks the project for the specified platform. This needs to be done before attempting to cook a mod/plugin as
@@ -41,12 +41,12 @@ public:
 	static TFuture<bool> CookPlugin_DLC(TSharedRef<class IPlugin> Plugin, const FString& OutputDirectory,
 										const FString& UProjectFile, const FName& PlatformNameIni);
 
-protected:
+public:
 	/**
 	 * Corrects the UPlugin file by setting ExplicitlyLoaded to true and updating the EngineVersion.
-	 * 
-	 * This function is designed to be used after packaging a plugin as DLC to correct the staged 
-	 * UPlugin file without modifying the original source file. Setting ExplicitlyLoaded to true, 
+	 *
+	 * This function is designed to be used after packaging a plugin as DLC to correct the staged
+	 * UPlugin file without modifying the original source file. Setting ExplicitlyLoaded to true,
 	 * is required for the packaged mod to be correctly unloaded.
 	 *
 	 * @param UPluginFilePath The path to the UPlugin file.
@@ -56,6 +56,8 @@ protected:
 
 	/** Gets all available mod plugin packages. */
 	void FindAvailablePlugins(TArray<TSharedRef<IPlugin>>& OutAvailableGameMods);
+
+	FText GetSelectedPlatformName() const;
 
 	/**
 	 * Checks if a plugin has any unsaved content.
@@ -74,57 +76,20 @@ protected:
 	static void SetShareMaterialShaderCodeEnabled(bool bEnabled);
 	static bool IsIoStoreEnabled();
 
-	/** Gets the project path (full path with the .uproject extension). */
-	static FString GetProjectPath();
-
-protected:
-	/** Generates the widget for the combo box with string items. */
-	TSharedRef<SWidget> GenerateStringComboBoxWidget(TSharedPtr<FString> Item);
-
-	/** Generates the widget for the combo box with plugin items. */
-	TSharedRef<SWidget> GeneratePluginComboBoxWidget(TSharedPtr<IPlugin> Item);
-
-	/** Gets the selected plugin */
-	TSharedPtr<IPlugin> GetSelectedPlugin() const;
-
-	/** Gets the selected platform name (e.g. Windows, Android, etc.). */
-	FText GetSelectedPlatformName() const;
-
 	/** Gets the output package path (directory to export the packaged plugin to). */
 	FText GetOutputPackagePath() const;
 
-	void OnPluginSelected(TSharedPtr<IPlugin> SelectedItem, ESelectInfo::Type SelectInfo);
-	void OnPlatformSelected(TSharedPtr<FString> SelectedItem, ESelectInfo::Type SelectInfo);
-	void OnOutputPackagePathTextChanged(const FText& InText);
+	/** Gets the project path (full path with the .uproject extension). */
+	static FString GetProjectPath();
 
-	/** Executes when the package path browse button is clicked (opens a directory picker). */
-	FReply HandleOnPackagePathBrowseButtonClicked();
+	bool CanPackage() const;
 
-	/** Executes when the package button is pressed (and initiates the packaging process). */
-	FReply HandleOnPackageButtonPressed();
+	FPackagingStatusChanged OnPackagingStatusChanged;
 
-	/** Enables or disables the package widgets. */
+protected:
 	void EnablePackageWidgets(bool bEnable);
 
-protected:
-	TSharedPtr<SWindow> PackagePluginWindow;
-
-	/** The plugin combo box (shows all available Game Features-based plugins). */
-	TSharedPtr<SComboBox<TSharedPtr<IPlugin>>> PluginComboBox;
-
-	/** The platform combo box (e.g. Windows, Android, etc.). */
-	TSharedPtr<SComboBox<TSharedPtr<FString>>> PlatformComboBox;
-
-	/** The package path input (directory to export the packaged plugin to). */
-	TSharedPtr<SEditableTextBox> OutputPackagePathInput;
-
-	/** The package path browse button (to open a directory picker). */
-	TSharedPtr<SButton> PackagePathBrowseButton;
-
-	/** The package button. */
-	TSharedPtr<SButton> PackageButton;
-
-protected:
+public:
 	/** The source of the platforms (e.g. Windows, Android, etc.). */
 	TArray<TSharedPtr<FString>> PlatformsSource;
 
@@ -160,4 +125,10 @@ protected:
 	 * Saves the selected settings to the config file.
 	 */
 	void SaveSettings();
+
+	TSharedPtr<IPlugin> GetSelectedPlugin() const;
+
+private:
+	// If this is false, packaging options will be disabled
+	bool bCanPackage;
 };

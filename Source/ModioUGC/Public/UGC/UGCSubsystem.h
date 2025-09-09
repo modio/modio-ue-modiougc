@@ -209,6 +209,11 @@ public:
 			  Category = "mod.io|UGC|Utilities")
 	TArray<FName> GetPackageNamesFromUGCPackage(const FUGCPackage& UGCPackage) const;
 
+	/**
+	 * Sets a function to sanitize filepaths for UGC packages.
+	*/
+    void SetFilePathSanitizationFn(TFunction<FString(FString&)> InFunc);
+
 protected:
 	//~ Begin IModEnabledStateProvider Interface
 	virtual bool NativeQueryIsModEnabled(FGenericModID ModID) override;
@@ -305,4 +310,10 @@ private:
 	 */
 	UPROPERTY()
 	FOnUGCProviderDeinitializedDelegate OnUGCProviderDeinitializedHandler;
+
+	/**
+	 * Function to sanitize file paths for UGC packages
+	 * This should be used to ensure that file paths are valid and follow the expected format of UGC package storage.
+	 */
+	TFunction<FString(FString&)> FilePathSanitizationFn;
 };

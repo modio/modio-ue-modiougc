@@ -14,20 +14,17 @@
 #include "HAL/Platform.h"
 #include "IUATHelperModule.h"
 #include "Interfaces/IPluginManager.h"
+#include "Misc/DataDrivenPlatformInfoRegistry.h"
 #include "Misc/EngineVersionComparison.h"
 #include "Misc/PackageName.h"
 #include "ModioUGCEditor.h"
-#include "ModioUGCEditorCommands.h"
 #include "ModioUGCEditorStyle.h"
-#include "Widgets/SWidget.h"
-#include "Widgets/SWindow.h"
-#if UE_VERSION_NEWER_THAN(5, 2, 0)
-	#include "Settings/PlatformsMenuSettings.h"
-#endif
-#include "Misc/DataDrivenPlatformInfoRegistry.h"
+#include "Settings/PlatformsMenuSettings.h"
 #include "Settings/ProjectPackagingSettings.h"
 #include "UGC/Types/UGC_Metadata.h"
 #include "UObject/SavePackage.h"
+#include "Widgets/SWidget.h"
+#include "Widgets/SWindow.h"
 
 #define LOCTEXT_NAMESPACE "ModioUGCPackager"
 
@@ -224,6 +221,11 @@ bool FModioUGCPackager::IsIoStoreEnabled()
 	return bEnabled;
 }
 
+FText FModioUGCPackager::GetOutputPackagePath() const
+{
+	return FText::FromString(SelectedSettings.OutputPackagePath);
+}
+
 FString FModioUGCPackager::GetProjectPath()
 {
 	if (FPaths::IsProjectFilePathSet())
@@ -246,139 +248,15 @@ FString FModioUGCPackager::GetProjectPath()
 	return FString();
 }
 
-TSharedRef<SWidget> FModioUGCPackager::GenerateStringComboBoxWidget(TSharedPtr<FString> Item)
-{
-	return SNew(STextBlock)
-		.Text_Lambda([Item]() { return FText::FromString(*Item); })
-#if UE_VERSION_NEWER_THAN(5, 1, 0)
-		.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-#else
-		.Font(FEditorStyle::GetFontStyle("PropertyWindow.NormalFont"))
-#endif
-		;
-}
-
-TSharedRef<SWidget> FModioUGCPackager::GeneratePluginComboBoxWidget(TSharedPtr<IPlugin> Item)
-{
-	return SNew(STextBlock)
-		.Text_Lambda([Item]() { return FText::FromString(*Item->GetName()); })
-#if UE_VERSION_NEWER_THAN(5, 1, 0)
-		.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-#else
-		.Font(FEditorStyle::GetFontStyle("PropertyWindow.NormalFont"))
-#endif
-		;
-}
-
-TSharedPtr<IPlugin> FModioUGCPackager::GetSelectedPlugin() const
-{
-	const TSharedPtr<IPlugin>* FoundPlugin = PluginsSource.FindByPredicate([this](const TSharedPtr<IPlugin>& Plugin) {
-		if (SelectedSettings.Plugin.IsValid() && SelectedSettings.Plugin->GetVersePath() == *Plugin->GetVersePath() &&
-			SelectedSettings.Plugin->GetName() == *Plugin->GetName())
-		{
-			return true;
-		}
-		return false;
-	});
-
-	if (FoundPlugin)
-	{
-		return *FoundPlugin;
-	}
-
-	if (PluginsSource.Num() > 0)
-	{
-		return PluginsSource[0];
-	}
-
-	return nullptr;
-}
-
-FText FModioUGCPackager::GetSelectedPlatformName() const
-{
-	const TSharedPtr<FString>* FoundPlatformName =
-		PlatformsSource.FindByPredicate([this](const TSharedPtr<FString>& PlatformName) {
-			if (SelectedSettings.PlatformName == *PlatformName)
-			{
-				return true;
-			}
-			return false;
-		});
-
-	if (FoundPlatformName)
-	{
-		return FText::FromString(**FoundPlatformName);
-	}
-
-	if (PlatformsSource.Num() > 0)
-	{
-		return FText::FromString(*PlatformsSource[0]);
-	}
-
-	UE_LOG(ModioUGCEditor, Error, TEXT("No platforms available for packaging"));
-	return FText::GetEmpty();
-}
-
-FText FModioUGCPackager::GetOutputPackagePath() const
-{
-	return FText::FromString(SelectedSettings.OutputPackagePath);
-}
-
-void FModioUGCPackager::OnPluginSelected(TSharedPtr<IPlugin> SelectedItem, ESelectInfo::Type SelectInfo)
-{
-	SelectedSettings.Plugin = SelectedItem;
-	SaveSettings();
-}
-
-void FModioUGCPackager::OnPlatformSelected(TSharedPtr<FString> SelectedItem, ESelectInfo::Type SelectInfo)
-{
-	SelectedSettings.PlatformName = *SelectedItem;
-	SaveSettings();
-}
-
-void FModioUGCPackager::OnOutputPackagePathTextChanged(const FText& InText)
-{
-	SelectedSettings.OutputPackagePath = InText.ToString();
-	SaveSettings();
-}
-
-FReply FModioUGCPackager::HandleOnPackagePathBrowseButtonClicked()
-{
-	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
-	if (DesktopPlatform)
-	{
-		TSharedPtr<SWindow> ParentWindow = FSlateApplication::Get().FindWidgetWindow(PackageButton.ToSharedRef());
-
-		FString FolderName;
-		const bool bFolderSelected = DesktopPlatform->OpenDirectoryDialog(
-			FSlateApplication::Get().FindBestParentWindowHandleForDialogs(PackageButton),
-			LOCTEXT("PackageUGCOutputFolderDialogTitle", "Select UGC output directory").ToString(),
-			SelectedSettings.OutputPackagePath, FolderName);
-
-		SelectedSettings.OutputPackagePath = FolderName;
-		SaveSettings();
-	}
-	else
-	{
-		UE_LOG(ModioUGCEditor, Error, TEXT("Failed to open directory dialog"));
-	}
-
-	return FReply::Handled();
-}
-
-FReply FModioUGCPackager::HandleOnPackageButtonPressed()
-{
-	PackagePlugin();
-	return FReply::Handled();
-}
-
 void FModioUGCPackager::EnablePackageWidgets(bool bEnable)
 {
-	if (PackagePluginWindow)
-	{
-		PackagePluginWindow->EnableWindow(bEnable);
-		PackagePluginWindow->SetEnabled(bEnable);
-	}
+	bCanPackage = bEnable;
+	OnPackagingStatusChanged.ExecuteIfBound(!bEnable);
+}
+
+bool FModioUGCPackager::CanPackage() const
+{
+	return bCanPackage;
 }
 
 bool FModioUGCPackager::ValidateSelectedSettings(FText& OutValidationErrorMessage) const
@@ -500,6 +378,30 @@ TSharedPtr<FJsonObject> DeserializePluginJson(const FString& Text, FText* OutFai
 	return JsonObject;
 }
 
+TSharedPtr<IPlugin> FModioUGCPackager::GetSelectedPlugin() const
+{
+	const TSharedPtr<IPlugin>* FoundPlugin = PluginsSource.FindByPredicate([this](const TSharedPtr<IPlugin>& Plugin) {
+		if (SelectedSettings.Plugin.IsValid() && SelectedSettings.Plugin->GetVersePath() == *Plugin->GetVersePath() &&
+			SelectedSettings.Plugin->GetName() == *Plugin->GetName())
+		{
+			return true;
+		}
+		return false;
+	});
+
+	if (FoundPlugin)
+	{
+		return *FoundPlugin;
+	}
+
+	if (PluginsSource.Num() > 0)
+	{
+		return PluginsSource[0];
+	}
+
+	return nullptr;
+}
+
 void FModioUGCPackager::PackagePlugin()
 {
 	FText ValidationErrorMessage;
@@ -587,7 +489,6 @@ void FModioUGCPackager::PackagePlugin()
 
 	// Disable the window while we're packaging
 	EnablePackageWidgets(false);
-
 	const FString ProjectFile = GetProjectPath();
 
 	// Start a UAT task to cook the project, which we need before cooking the Plugin.
@@ -709,189 +610,6 @@ void FModioUGCPackager::PackagePlugin()
 						   FName(SelectedSettings.PlatformName))
 				.Next(CopyPackagedPlugin);
 		});
-}
-
-void FModioUGCPackager::ShowPackagerWindow()
-{
-	PlatformsSource.Empty();
-	for (const auto& Pair : FDataDrivenPlatformInfoRegistry::GetAllPlatformInfos())
-	{
-		if (Pair.Value.bIsFakePlatform || Pair.Value.bEnabledForUse == false)
-		{
-			continue;
-		}
-
-		PlatformsSource.Add(MakeShared<FString>(Pair.Key.ToString()));
-	}
-
-	TArray<TSharedRef<IPlugin>> AvailablePlugins;
-	FindAvailablePlugins(AvailablePlugins);
-
-	PluginsSource.Empty();
-	for (const TSharedRef<IPlugin>& Plugin : AvailablePlugins)
-	{
-		PluginsSource.Add(Plugin);
-	}
-
-	LoadSavedSettings();
-
-	FText SelectPluginText = LOCTEXT("SelectPluginText", "Select a plugin to package for UGC");
-	FText PlatformText = LOCTEXT("PlatformText", "Platform");
-	FText PlatformToolTip = LOCTEXT("PlatformToolTip", "The platform to package the plugin for");
-	FText PackagePluginText = LOCTEXT("PackagePluginText", "Package");
-	FText OutputPackagePathText = LOCTEXT("OutputPackagePathText", "Output path");
-	FText SelectOutputPackagePathText = LOCTEXT("SelectOutputPackagePathText", "Select output path");
-
-	TSharedRef<SWindow> PackagePluginWindowRef =
-		SNew(SWindow)
-			.Title(FText::FromString("mod.io - Package plugin as UGC"))
-			.SupportsMaximize(false)
-			.SupportsMinimize(false)
-			.HasCloseButton(true)
-			.ClientSize(FVector2D(500.f, 250.f))
-			.SizingRule(ESizingRule::FixedSize)
-			.AutoCenter(EAutoCenter::PreferredWorkArea)
-			.ScreenPosition(FVector2D(0, 0))
-			.LayoutBorder(FMargin(
-				3.f))[SNew(SOverlay) +
-					  SOverlay::Slot()
-						  .Padding(15.0f)
-						  .VAlign(VAlign_Fill)
-						  .HAlign(HAlign_Fill)
-							  [SNew(SVerticalBox) +
-							   SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Text(SelectPluginText)] +
-							   SVerticalBox::Slot()
-								   .VAlign(VAlign_Fill)
-								   .HAlign(HAlign_Fill)
-								   .Padding(0, 5.0f, 0, 10.0f)
-								   .AutoHeight()
-									   [SAssignNew(PluginComboBox, SComboBox<TSharedPtr<IPlugin>>)
-											.OptionsSource(&PluginsSource)
-											.InitiallySelectedItem([this]() -> TSharedPtr<IPlugin> {
-												if (TSharedPtr<IPlugin> SelectedPlugin = GetSelectedPlugin())
-												{
-													return SelectedPlugin;
-												}
-												return nullptr;
-											}())
-											.ToolTipText(PlatformToolTip)
-											.OnSelectionChanged(this, &FModioUGCPackager::OnPluginSelected)
-											.OnGenerateWidget(this, &FModioUGCPackager::GeneratePluginComboBoxWidget)
-												[SNew(STextBlock)
-													 .Text_Lambda([this]() {
-														 TSharedPtr<IPlugin> SelectedPlugin = GetSelectedPlugin();
-														 if (SelectedPlugin.IsValid())
-														 {
-															 return FText::FromString(SelectedPlugin->GetName());
-														 }
-														 return LOCTEXT("ModioUGCManagerEditor_NoPluginsAvailable",
-																		"No plugins available");
-													 })
-#if UE_VERSION_NEWER_THAN(5, 1, 0)
-													 .Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-#else
-													 .Font(FEditorStyle::GetFontStyle("PropertyWindow.NormalFont"))
-#endif
-	]] + SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Text(PlatformText)] +
-							   SVerticalBox::Slot()
-								   .VAlign(VAlign_Fill)
-								   .HAlign(HAlign_Fill)
-								   .Padding(0, 5.0f, 0, 10.0f)
-								   .AutoHeight()
-									   [SAssignNew(PlatformComboBox, SComboBox<TSharedPtr<FString>>)
-											.OptionsSource(&PlatformsSource)
-											.InitiallySelectedItem([this]() -> TSharedPtr<FString> {
-												FText SelectedPlatformName = GetSelectedPlatformName();
-												if (!SelectedPlatformName.IsEmpty())
-												{
-													const TSharedPtr<FString>* FoundPlatformName =
-														PlatformsSource.FindByPredicate(
-															[this, SelectedPlatformName](
-																const TSharedPtr<FString>& PlatformName) {
-																if (SelectedPlatformName.ToString().Equals(
-																		*PlatformName))
-																{
-																	return true;
-																}
-																return false;
-															});
-													if (FoundPlatformName)
-													{
-														return *FoundPlatformName;
-													}
-												}
-												return nullptr;
-											}())
-											.ToolTipText(PlatformToolTip)
-											.OnSelectionChanged(this, &FModioUGCPackager::OnPlatformSelected)
-											.OnGenerateWidget(this, &FModioUGCPackager::GenerateStringComboBoxWidget)
-												[SNew(STextBlock)
-													 .Text(this, &FModioUGCPackager::GetSelectedPlatformName)
-#if UE_VERSION_NEWER_THAN(5, 1, 0)
-													 .Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-#else
-													 .Font(FEditorStyle::GetFontStyle("PropertyWindow.NormalFont"))
-#endif
-	]] + SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Text(OutputPackagePathText)] +
-							   SVerticalBox::Slot()
-								   .VAlign(VAlign_Fill)
-								   .HAlign(HAlign_Fill)
-								   .Padding(0, 5.0f, 0, 10.0f)
-								   .AutoHeight()
-									   [SNew(SHorizontalBox) +
-										SHorizontalBox::Slot()
-											.VAlign(VAlign_Fill)
-											.HAlign(HAlign_Fill)
-												[SAssignNew(OutputPackagePathInput, SEditableTextBox)
-													 .Text(this, &FModioUGCPackager::GetOutputPackagePath)
-													 .OnTextCommitted_Lambda(
-														 [this](const FText& InText, ETextCommit::Type CommitType) {
-															 OnOutputPackagePathTextChanged(InText);
-														 })
-													 .OnTextChanged(
-														 this, &FModioUGCPackager::OnOutputPackagePathTextChanged)] +
-										SHorizontalBox::Slot()
-											.HAlign(HAlign_Right)
-											.AutoWidth()
-												[SAssignNew(PackagePathBrowseButton, SButton)
-													 .OnClicked(this, &FModioUGCPackager::
-																		  HandleOnPackagePathBrowseButtonClicked)
-													 .HAlign(HAlign_Right)
-													 .VAlign(VAlign_Center)
-													 .ForegroundColor(FSlateColor::UseForeground())
-														 [SNew(STextBlock).Text(SelectOutputPackagePathText)]]] +
-							   SVerticalBox::Slot()
-								   .Padding(0, 10.0f, 0, 0)
-								   .FillHeight(
-									   1.0f)[SAssignNew(PackageButton, SButton)
-												 .OnClicked(this, &FModioUGCPackager::HandleOnPackageButtonPressed)
-												 .IsEnabled_Lambda([this]() -> bool {
-													 FText UnusedValidationErrorMessage;
-													 return ValidateSelectedSettings(UnusedValidationErrorMessage);
-												 })
-												 .ToolTipText_Lambda([this]() -> FText {
-													 FText ValidationErrorMessage;
-													 if (!ValidateSelectedSettings(ValidationErrorMessage))
-													 {
-														 return ValidationErrorMessage;
-													 }
-													 return FText::GetEmpty();
-												 })
-												 .HAlign(HAlign_Center)
-												 .VAlign(VAlign_Fill)
-												 .ForegroundColor(FSlateColor::UseForeground())
-													 [SNew(SOverlay) +
-													  SOverlay::Slot()
-														  .VAlign(VAlign_Center)
-														  .HAlign(HAlign_Center)[SNew(STextBlock)
-																					 .Text(PackagePluginText)
-																					 .Justification(
-																						 ETextJustify::Center)]]]]];
-
-	FSlateApplication::Get().AddWindow(PackagePluginWindowRef, false);
-	PackagePluginWindowRef->BringToFront(true);
-	PackagePluginWindowRef->ShowWindow();
-	PackagePluginWindow = PackagePluginWindowRef;
 }
 
 TFuture<bool> FModioUGCPackager::CookProject(const FString& OutputDirectory, const FString& UProjectFile,
@@ -1044,6 +762,31 @@ void FModioUGCPackager::FindAvailablePlugins(TArray<TSharedRef<IPlugin>>& OutAva
 			OutAvailableGameMods.AddUnique(Plugin);
 		}
 	}
+}
+
+FText FModioUGCPackager::GetSelectedPlatformName() const
+{
+	const TSharedPtr<FString>* FoundPlatformName =
+		PlatformsSource.FindByPredicate([this](const TSharedPtr<FString>& PlatformName) {
+			if (SelectedSettings.PlatformName == *PlatformName)
+			{
+				return true;
+			}
+			return false;
+		});
+
+	if (FoundPlatformName)
+	{
+		return FText::FromString(**FoundPlatformName);
+	}
+
+	if (PlatformsSource.Num() > 0)
+	{
+		return FText::FromString(*PlatformsSource[0]);
+	}
+
+	UE_LOG(ModioUGCEditor, Error, TEXT("No platforms available for packaging"));
+	return FText::GetEmpty();
 }
 
 #undef LOCTEXT_NAMESPACE

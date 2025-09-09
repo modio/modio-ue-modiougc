@@ -14,15 +14,12 @@
 #include "IPlatformFilePak.h"
 #include "LevelEditor.h"
 #include "Misc/MessageDialog.h"
-#include "ModioUGCCreator.h"
-#include "ModioUGCEditorCommands.h"
-#include "ModioUGCEditorStyle.h"
-#include "ModioUGCSettings.h"
-
-#include "UGC/Types/UGCPackage.h"
-#include "UGC/UGCSubsystem.h"
 #include "ModioEditorUtilityFunctions.h"
 #include "ModioUGCEditorSettings.h"
+#include "ModioUGCEditorStyle.h"
+#include "ModioUGCSettings.h"
+#include "UGC/Types/UGCPackage.h"
+#include "UGC/UGCSubsystem.h"
 
 DEFINE_LOG_CATEGORY(ModioUGCEditor);
 
@@ -32,71 +29,8 @@ void FModioUGCEditorModule::StartupModule()
 {
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin
 	// file per-module
-
-	UGCCreator = MakeShared<FModioUGCCreator>();
-	UGCPackager = MakeShared<FModioUGCPackager>();
-
 	FModioUGCEditorStyle::Initialize();
 	FModioUGCEditorStyle::ReloadTextures();
-
-	FModioUGCEditorCommands::Register();
-
-	PluginCommands = MakeShareable(new FUICommandList);
-
-	PluginCommands->MapAction(FModioUGCEditorCommands::Get().CreateUGCAction,
-							  FExecuteAction::CreateRaw(this, &FModioUGCEditorModule::CreateUGCButtonClicked),
-							  FCanExecuteAction());
-
-	PluginCommands->MapAction(FModioUGCEditorCommands::Get().PackageUGCAction,
-							  FExecuteAction::CreateRaw(this, &FModioUGCEditorModule::PackageUGCButtonClicked),
-							  FCanExecuteAction());
-
-	FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
-	// Add commands
-	{
-		FName MenuSection = "FileProject";
-		FName ToolbarSection = "Content";
-
-		// Add creator button to the menu
-		{
-			TSharedPtr<FExtender> MenuExtender = MakeShareable(new FExtender());
-			MenuExtender->AddMenuExtension(
-				MenuSection, EExtensionHook::After, PluginCommands,
-				FMenuExtensionDelegate::CreateRaw(this, &FModioUGCEditorModule::AddUGCCreatorMenuExtension));
-
-			LevelEditorModule.GetMenuExtensibilityManager()->AddExtender(MenuExtender);
-		}
-
-		// Add creator button to the toolbar
-		{
-			TSharedPtr<FExtender> ToolbarExtender = MakeShareable(new FExtender);
-			ToolbarExtender->AddToolBarExtension(
-				ToolbarSection, EExtensionHook::After, PluginCommands,
-				FToolBarExtensionDelegate::CreateRaw(this, &FModioUGCEditorModule::AddUGCCreatorToolbarExtension));
-
-			LevelEditorModule.GetToolBarExtensibilityManager()->AddExtender(ToolbarExtender);
-		}
-
-		// Add packager button to the menu
-		{
-			TSharedPtr<FExtender> MenuExtender = MakeShareable(new FExtender());
-			MenuExtender->AddMenuExtension(
-				MenuSection, EExtensionHook::After, PluginCommands,
-				FMenuExtensionDelegate::CreateRaw(this, &FModioUGCEditorModule::AddUGCPackagerMenuExtension));
-
-			LevelEditorModule.GetMenuExtensibilityManager()->AddExtender(MenuExtender);
-		}
-
-		// Add packager button to the toolbar
-		{
-			TSharedPtr<FExtender> ToolbarExtender = MakeShareable(new FExtender);
-			ToolbarExtender->AddToolBarExtension(
-				ToolbarSection, EExtensionHook::After, PluginCommands,
-				FToolBarExtensionDelegate::CreateRaw(this, &FModioUGCEditorModule::AddUGCPackagerToolbarExtension));
-
-			LevelEditorModule.GetToolBarExtensibilityManager()->AddExtender(ToolbarExtender);
-		}
-	}
 
 	RegisterPakFileOverride();
 
@@ -126,47 +60,9 @@ void FModioUGCEditorModule::ShutdownModule()
 	// we call this function before unloading the module.
 	FModioUGCEditorStyle::Shutdown();
 
-	FModioUGCEditorCommands::Unregister();
-
 	UnregisterPakFileOverride();
 
 	UE_LOG(ModioUGCEditor, Display, TEXT("mod.io UGC Editor module unloaded."));
-}
-
-void FModioUGCEditorModule::CreateUGCButtonClicked()
-{
-	if (UGCCreator.IsValid())
-	{
-		UGCCreator->OpenNewPluginWizard();
-	}
-}
-
-void FModioUGCEditorModule::PackageUGCButtonClicked()
-{
-	if (UGCPackager.IsValid())
-	{
-		UGCPackager->ShowPackagerWindow();
-	}
-}
-
-void FModioUGCEditorModule::AddUGCCreatorToolbarExtension(FToolBarBuilder& Builder)
-{
-	Builder.AddToolBarButton(FModioUGCEditorCommands::Get().CreateUGCAction);
-}
-
-void FModioUGCEditorModule::AddUGCCreatorMenuExtension(FMenuBuilder& Builder)
-{
-	Builder.AddMenuEntry(FModioUGCEditorCommands::Get().CreateUGCAction);
-}
-
-void FModioUGCEditorModule::AddUGCPackagerToolbarExtension(FToolBarBuilder& Builder)
-{
-	Builder.AddToolBarButton(FModioUGCEditorCommands::Get().PackageUGCAction);
-}
-
-void FModioUGCEditorModule::AddUGCPackagerMenuExtension(FMenuBuilder& Builder)
-{
-	Builder.AddMenuEntry(FModioUGCEditorCommands::Get().PackageUGCAction);
 }
 
 void FModioUGCEditorModule::RegisterPakFileOverride()
