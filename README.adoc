@@ -19,9 +19,10 @@ This plugin requires the core mod.io plugin to be installed alongside it. Suppor
 
 |===
 |Engine Version | Last Release
-|UE5.3 | Current
+|UE5.3 | 2025.9
 |UE5.4 | Current
 |UE5.5 | Current
+|UE5.6 | Current
 |===
 
 ### Platform compatability
@@ -41,7 +42,7 @@ For access to Windows (GDK), XBox, Playstation 4, Playstation 5 or Switch, pleas
 
 
 == Documentation
-Comprehensive documentation for this plugin https://docs.mod.io/unreal/modio-ugc/overview/[can be found here].
+Comprehensive documentation for this plugin https://docs.mod.io/unreal/modio-ugc[can be found here].
 
 == Installation
 
