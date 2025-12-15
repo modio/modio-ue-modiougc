@@ -53,7 +53,7 @@ struct MODIOUGC_API FUGCPackage
 	 * Information about this asset to register to the Asset Manager for discovery
 	 */
 	UPROPERTY()
-	UUGC_Metadata* PackageMetadata = nullptr;
+	TWeakObjectPtr<UUGC_Metadata> PackageMetadata;
 
 	/**
 	 * Path to the descriptor file for the UGC package (e.g., "Folder/Subfolder/RedSpaceship.uplugin").
@@ -137,7 +137,7 @@ struct MODIOUGC_API FUGCPackage
 		return HashCombine(GetTypeHash(Key.ModID.Get(FGenericModID())), GetTypeHash(Key.AssociatedPlugin));
 	}
 
-	bool UnloadAssets() const;
+	bool UnloadAssets();
 
 private:
 	TSharedPtr<FStreamableHandle> MetadataDataHandle;
@@ -165,12 +165,12 @@ private:
 	/**
 	 * Load the UGC metadata.
 	 */
-	UUGC_Metadata* LoadMetadata(const FString& Path);
+	TWeakObjectPtr<UUGC_Metadata> LoadMetadata(const FString& Path);
 
 	/**
 	 * Unregister the primary assets of the UGC package from the AssetManager.
 	 */
-	bool UnregisterPrimaryAssets() const;
+	bool UnregisterPrimaryAssets();
 
 	/**
 	 * Unload the shader library for the UGC package. This is relevant when the material shader code is shared.

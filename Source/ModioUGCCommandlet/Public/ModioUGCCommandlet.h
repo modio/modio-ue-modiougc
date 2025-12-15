@@ -1,0 +1,32 @@
+/*
+ *  Copyright (C) 2025 mod.io Pty Ltd. <https://mod.io>
+ *
+ *  This file is part of the mod.io ModioUGC Plugin.
+ *
+ *  Distributed under the MIT License. (See accompanying file LICENSE or
+ *   view online at <https://github.com/modio/modio-ue-modiougc/blob/main/LICENSE>)
+ *
+ */
+
+#pragma once
+
+#include "CoreMinimal.h"
+
+#include "Modules/ModuleInterface.h"
+#include "Modules/ModuleManager.h"
+
+DECLARE_LOG_CATEGORY_EXTERN(ModioUGCCommandlet, All, All);
+
+class FModioUGCCommandletModule : public IModuleInterface
+{
+public:
+	//~ IModuleInterface interface
+
+	virtual void StartupModule() override;
+	virtual void ShutdownModule() override;
+
+	virtual bool SupportsDynamicReloading() override
+	{
+		return true;
+	}
+};

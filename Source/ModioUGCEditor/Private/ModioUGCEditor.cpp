@@ -27,6 +27,8 @@ DEFINE_LOG_CATEGORY(ModioUGCEditor);
 
 void FModioUGCEditorModule::StartupModule()
 {
+	UE_LOG(LogTemp, Display, TEXT("ModioUGCEditor module has been loaded in mode: %s"), FCommandLine::Get());
+
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin
 	// file per-module
 	FModioUGCEditorStyle::Initialize();
@@ -50,19 +52,17 @@ void FModioUGCEditorModule::StartupModule()
 
 	UModioEditorUtilityFunctions::AddGettingStartedWidgetEntries(
 		GetMutableDefault<UModioUGCEditorSettings>()->GettingStartedEntries);
-
-	UE_LOG(ModioUGCEditor, Display, TEXT("mod.io UGC Editor module loaded."));
 }
 
 void FModioUGCEditorModule::ShutdownModule()
 {
+	UE_LOG(ModioUGCEditor, Display, TEXT("mod.io UGC Editor module unloaded."));
+
 	// This function may be called during shutdown to clean up your module.  For modules that support dynamic reloading,
 	// we call this function before unloading the module.
 	FModioUGCEditorStyle::Shutdown();
 
 	UnregisterPakFileOverride();
-
-	UE_LOG(ModioUGCEditor, Display, TEXT("mod.io UGC Editor module unloaded."));
 }
 
 void FModioUGCEditorModule::RegisterPakFileOverride()
