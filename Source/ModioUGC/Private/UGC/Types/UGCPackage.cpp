@@ -136,7 +136,7 @@ bool FUGCPackage::operator!=(const FUGCPackage& Other) const
 	return !(*this == Other);
 }
 
-bool FUGCPackage::UnloadAssets() const
+bool FUGCPackage::UnloadAssets()
 {
 	// Note: AssetRegistry is automatically unloaded when the package is unmounted
 	return UnregisterPrimaryAssets() && UnloadShaderLibrary();
@@ -214,19 +214,14 @@ bool FUGCPackage::RegisterPrimaryAssets()
 
 	// e.g. "/RedSpaceship/UUGC_Metadata.UUGC_Metadata"
 	FString PreferredDataPath = PackagePath / UUGC_Metadata::GetDefaultAssetName();
-	if (UUGC_Metadata* MetaData = LoadMetadata(PreferredDataPath))
-	{
-		PackageMetadata = MetaData;
-	}
-	else
+	PackageMetadata = LoadMetadata(PreferredDataPath);
+	if (!PackageMetadata.IsValid())
 	{
 		UE_LOG(LogModioUGC, Warning,
 			   TEXT("UGC does not contain metadata. This content cannot be registered to the AssetManager, but can "
 					"still be loaded using the AssetRegistry."));
-		PackageMetadata = nullptr;
 	}
-
-	if (PackageMetadata)
+	else
 	{
 		PackageMetadata->DebugLogValues();
 
@@ -287,7 +282,7 @@ bool FUGCPackage::RegisterPrimaryAssets()
 	return true;
 }
 
-bool FUGCPackage::UnregisterPrimaryAssets() const
+bool FUGCPackage::UnregisterPrimaryAssets()
 {
 	if (!AssociatedPlugin)
 	{
@@ -358,6 +353,9 @@ bool FUGCPackage::UnregisterPrimaryAssets() const
 		}
 	}
 
+	UnloadMetadata();
+	LoadedAssetRegistryState.Reset();
+
 	return true;
 }
 
@@ -408,26 +406,33 @@ bool FUGCPackage::UnloadShaderLibrary() const
 	return true;
 }
 
-UUGC_Metadata* FUGCPackage::LoadMetadata(const FString& Path)
+
+TWeakObjectPtr<UUGC_Metadata> FUGCPackage::LoadMetadata(const FString& InPath)
 {
-	if (FPackageName::DoesPackageExist(Path))
+	if (FPackageName::DoesPackageExist(FPackageName::ObjectPathToPackageName(InPath)))
 	{
-		MetadataDataHandle = UAssetManager::Get().GetStreamableManager().RequestAsyncLoad(FSoftObjectPath(Path));
-		// @todo make this async. For now we just wait
+		MetadataDataHandle = UAssetManager::Get().GetStreamableManager().RequestAsyncLoad(FSoftObjectPath(InPath));
+
 		if (MetadataDataHandle.IsValid())
 		{
-			MetadataDataHandle->WaitUntilComplete(0.0f, false);
-			UUGC_Metadata* LoadedData = Cast<UUGC_Metadata>(MetadataDataHandle->GetLoadedAsset());
+			// Synchronous for now
+			MetadataDataHandle->WaitUntilComplete(0.0f, /*bLogErrors*/ false);
+
+			UObject* LoadedObj = MetadataDataHandle->GetLoadedAsset();
+			UUGC_Metadata* LoadedData = Cast<UUGC_Metadata>(LoadedObj);
+
 			if (LoadedData && LoadedData->IsValidLowLevel())
 			{
-				return LoadedData;
+				// Return a weak pointer to avoid keeping it alive.
+				return TWeakObjectPtr<UUGC_Metadata>(LoadedData);
 			}
 		}
 	}
 
-	UE_LOG(LogModioUGC, Error, TEXT("Unable to load metadata at path %s"), *Path);
+	UE_LOG(LogModioUGC, Error, TEXT("Unable to load metadata at %s"), *InPath);
 	return nullptr;
-};
+}
+
 
 void FUGCPackage::UnloadMetadata()
 {
@@ -437,5 +442,9 @@ void FUGCPackage::UnloadMetadata()
 		MetadataDataHandle.Reset(); // Releases our reference to the handle
 	}
 
-	PackageMetadata = nullptr;
+	PackageMetadata.Reset();
+	
+	// Ensure async completes and run GC
+	FlushAsyncLoading();
+	CollectGarbage(RF_NoFlags);
 }

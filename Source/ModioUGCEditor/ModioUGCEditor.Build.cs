@@ -38,8 +38,6 @@ public class ModioUGCEditor : ModuleRules
                 "EditorStyle",
                 "CoreUObject",
                 "Engine",
-                "Slate",
-                "SlateCore",
                 "Json",
                 "DeveloperToolSettings",
                 "PakFile",
@@ -49,7 +47,11 @@ public class ModioUGCEditor : ModuleRules
                 "PluginUtils",
                 "AssetTools",
                 "GameProjectGeneration",
-                "DesktopPlatform"
+                "DesktopPlatform",
+                "UnrealEd",
+                "Slate",
+                "SlateCore",
+                "SlateRHIRenderer",
             }
         );
     }

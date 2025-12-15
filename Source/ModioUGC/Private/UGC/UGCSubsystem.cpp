@@ -323,7 +323,7 @@ bool UUGCSubsystem::LoadUGC(TSharedPtr<IPlugin> LoadedPlugin, TOptional<FGeneric
 
 			UGCPackages.Add(ModPackage);
 
-			if (ModPackage.PackageMetadata)
+			if (ModPackage.PackageMetadata.IsValid())
 			{
 				for (FPrimaryAssetTypeInfo PrimaryTypeInfo : ModPackage.PackageMetadata->PrimaryAssetTypesToScan)
 				{
@@ -397,6 +397,8 @@ bool UUGCSubsystem::IsUGCCompatible(const FString& UPluginFilePath)
 		// If we don't want to check the version, we can skip the rest of the checks
 		return true;
 	}
+
+	UE_LOG(LogModioUGC, Log, TEXT("Validating UGC plugin '%s'"), *UPluginFilePath);
 
 	// Read the uplugin file
 	FString UPluginContent;
@@ -493,7 +495,6 @@ void UUGCSubsystem::AddUGCFromPath(const FString& Path)
 	bool bAddSearchPath = false;
 	for (const FString& PluginFilePath : PluginFilePaths)
 	{
-		UE_LOG(LogModioUGC, Log, TEXT("Validating UGC plugin at '%s'"), *PluginFilePath);
 		// Check compatibility first
 		if (!IsUGCCompatible(PluginFilePath))
 		{
@@ -505,6 +506,12 @@ void UUGCSubsystem::AddUGCFromPath(const FString& Path)
 		if (TSharedPtr<IPlugin> FoundPlugin = IPluginManager::Get().FindPlugin(PluginName))
 		{
 			FString FoundPluginDirectory = FPaths::GetPath(FoundPlugin->GetDescriptorFileName());
+			if (PluginDirectory == FoundPluginDirectory)
+			{
+				// Same plugin, skip
+				continue;
+			}
+
 			FString FriendlyName = FoundPlugin->GetFriendlyName();
 			bool bIsEnabled = FoundPlugin.Get()->IsEnabled();
 

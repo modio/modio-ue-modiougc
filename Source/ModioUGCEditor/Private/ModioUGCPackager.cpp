@@ -188,6 +188,7 @@ FString FModioUGCPackager::MakeUATParams_DLC(const FString& DLCName)
 	FString CommandLine = FString::Printf(TEXT(" -basedonreleaseversion=\"%s\""), *ReleaseVersionName);
 
 	CommandLine += " -stagebasereleasepaks";
+	CommandLine += " -neverpackage";
 
 	CommandLine += FString::Printf(TEXT(" -DLCName=\"%s\""), *DLCName);
 
@@ -341,6 +342,21 @@ void FModioUGCPackager::LoadSavedSettings()
 	}
 }
 
+void FModioUGCPackager::LoadShaderCodeSettings()
+{
+	if (GConfig)
+	{
+		bool bShareMaterialShaderCode;
+		GConfig->GetBool(TEXT("ModioUGC.ShaderCode"), TEXT("bShareMaterialShaderCode"), bShareMaterialShaderCode,
+						 GEditorPerProjectIni);
+
+		// Since this key is just temporary for cooking the plugin, we'll remove it now
+		GConfig->RemoveKey(TEXT("ModioUGC.ShaderCode"), TEXT("bShareMaterialShaderCode"), GEditorPerProjectIni);
+
+		SetShareMaterialShaderCodeEnabled(bShareMaterialShaderCode);
+	}
+}
+
 void FModioUGCPackager::SaveSettings()
 {
 	if (GConfig)
@@ -356,6 +372,17 @@ void FModioUGCPackager::SaveSettings()
 			GConfig->SetString(TEXT("ModioUGC.Core"), TEXT("PluginName"), *SelectedSettings.Plugin->GetName(),
 							   GEditorPerProjectIni);
 		}
+
+		GConfig->Flush(false, GEditorPerProjectIni);
+	}
+}
+
+void FModioUGCPackager::SaveShaderCodeSettings()
+{
+	if (GConfig)
+	{
+		bool bShareMaterialShaderCode = IsShareMaterialShaderCodeEnabled();
+		GConfig->SetBool(TEXT("ModioUGC.ShaderCode"), TEXT("bShareMaterialShaderCode"), bShareMaterialShaderCode, GEditorPerProjectIni);
 
 		GConfig->Flush(false, GEditorPerProjectIni);
 	}
@@ -402,46 +429,33 @@ TSharedPtr<IPlugin> FModioUGCPackager::GetSelectedPlugin() const
 	return nullptr;
 }
 
-void FModioUGCPackager::PackagePlugin()
+void FModioUGCPackager::StoreUGCMetadata()
 {
-	FText ValidationErrorMessage;
-	if (!ValidateSelectedSettings(ValidationErrorMessage))
-	{
-		FMessageDialog::Open(EAppMsgType::Ok,
-							 FText::Format(LOCTEXT("PackageUGCError_ValidationFailed", "Validation failed: {0}"),
-										   ValidationErrorMessage));
-		return;
-	}
+	const TSharedPtr<IPlugin> SelectedPlugin = GetSelectedPlugin();
+	StoreUGCMetadata(SelectedPlugin);
+}
 
-	if (!IsAllContentSaved(GetSelectedPlugin().ToSharedRef()))
-	{
-		FEditorFileUtils::SaveDirtyPackages(true, true, true);
-	}
-
-	if (!IsAllContentSaved(GetSelectedPlugin().ToSharedRef()))
-	{
-		FText PackageModError = FText::Format(
-			LOCTEXT("PackageUGCError_UnsavedContent", "You must save all assets in {0} before you can share it."),
-			FText::FromString(GetSelectedPlugin()->GetName()));
-
-		FMessageDialog::Open(EAppMsgType::Ok, PackageModError);
-		return;
-	}
-
-	FString PackagePath = *SelectedSettings.Plugin->GetMountedAssetPath().LeftChop(1);
+void FModioUGCPackager::StoreUGCMetadata(const TSharedPtr<IPlugin>& Plugin)
+{
+	FString PackagePath = Plugin->GetMountedAssetPath().LeftChop(1);
 	// e.g. "/RedSpaceship/UUGC_Metadata.UUGC_Metadata"
 	FString PreferredDataPath = PackagePath / UUGC_Metadata::GetDefaultAssetName();
 
 	// Load it from disk
+	UE_LOG(ModioUGCEditor, Display, TEXT("Attempting store data on UUGC_Metadata located at: `%s`"),
+		   *PreferredDataPath);
 	UObject* AssetObject = StaticLoadObject(UUGC_Metadata::StaticClass(), nullptr, *PreferredDataPath);
-	if (UUGC_Metadata* Metadata = Cast<UUGC_Metadata>(AssetObject))
+	UUGC_Metadata* Metadata = Cast<UUGC_Metadata>(AssetObject);
+	if (Metadata)
 	{
+		UE_LOG(ModioUGCEditor, Display, TEXT("loaded UUGC_Metadata"));
 		Metadata->DebugLogValues();
-		Metadata->UnrealVersion = FEngineVersion::Current().ToString();
-		UE_LOG(ModioUGCEditor, Log, TEXT("Setting Metadata `UnrealVersion` to `%s`"), *Metadata->UnrealVersion);
+		Metadata->UnrealVersion = FEngineVersion::CompatibleWith().ToString();
+		UE_LOG(ModioUGCEditor, Display, TEXT("Setting Metadata `UnrealVersion` to `%s`"), *Metadata->UnrealVersion);
 
 		Metadata->bIoStoreEnabled = IsIoStoreEnabled();
-		UE_LOG(ModioUGCEditor, Log, TEXT("Setting Metadata `bIoStoreEnabled` to `%hhd`"), Metadata->bIoStoreEnabled);
+		UE_LOG(ModioUGCEditor, Display, TEXT("Setting Metadata `bIoStoreEnabled` to `%hhd`"),
+			   Metadata->bIoStoreEnabled);
 
 		// Mark dirty so it saves properly
 		Metadata->MarkPackageDirty();
@@ -459,30 +473,83 @@ void FModioUGCPackager::PackagePlugin()
 				FSavePackageArgs SavePackageArgs;
 				SavePackageArgs.TopLevelFlags = EObjectFlags::RF_Standalone;
 				UPackage::SavePackage(Package, Metadata, *PackageFilename, SavePackageArgs);
-				UE_LOG(ModioUGCEditor, Log, TEXT("Successfully saved package to '%s'"), *PackageFilename);
+				UE_LOG(ModioUGCEditor, Display, TEXT("Successfully saved package to '%s'"), *PackageFilename);
 			}
 			else
 			{
 				UE_LOG(ModioUGCEditor, Error, TEXT("Failed to resolve package filename for '%s'"), *Package->GetName());
 			}
 		}
-	}
-	else if (AssetObject)
-	{
-		UE_LOG(ModioUGCEditor, Error, TEXT("Failed to load metadata asset at %s"), *PreferredDataPath);
-		FText PackageModError =
-			FText::Format(LOCTEXT("PackageUGCError_MissingMetadataAsset", "Could not find metadata asset in {0}."),
-						  FText::FromString(GetSelectedPlugin()->GetName()));
-		FMessageDialog::Open(EAppMsgType::Ok, PackageModError);
+		else
+		{
+			UE_LOG(ModioUGCEditor, Error, TEXT("Could not get the outermost on the metadata"));
+		}
 		return;
+	}
+
+	FText PackageModError;
+	if (AssetObject == nullptr)
+	{
+		PackageModError = FText::Format(LOCTEXT("PackageUGCError_MissingMetadataAsset",
+												"Failed to load metadata asset calling `StaticLoadObject` at {0}."),
+										FText::FromString(PreferredDataPath));
+	}
+	else if (Metadata == nullptr || !Metadata->IsValidLowLevel())
+	{
+		PackageModError = FText::Format(
+			LOCTEXT("PackageUGCError_MissingMetadataAsset", "Failed to cast metadata asset to UUGC_Metadata at {0}."),
+			FText::FromString(PreferredDataPath));
 	}
 	else
 	{
-		UE_LOG(ModioUGCEditor, Warning, TEXT("Could not load or cast metadata asset at %s"), *PreferredDataPath);
+		PackageModError = FText::Format(
+			LOCTEXT("PackageUGCError_MissingMetadataAsset", "Unknown error loading UUGC_Metadata at {0}."),
+			FText::FromString(PreferredDataPath));
+	}
 
-		FText PackageModError =
-			FText::Format(LOCTEXT("PackageUGCError_MissingMetadataAsset", "Could not find metadata asset in {0}."),
-						  FText::FromString(GetSelectedPlugin()->GetName()));
+	if (!PackageModError.IsEmpty())
+	{
+		UE_LOG(ModioUGCEditor, Error, TEXT("%s"), *PackageModError.ToString());
+		FMessageDialog::Open(EAppMsgType::Ok, PackageModError);
+	}
+}
+
+void FModioUGCPackager::StoreShaderCodeSettings()
+{
+	UE_LOG(ModioUGCEditor, Display, TEXT("Storing shader code settings"));
+	SaveShaderCodeSettings();
+	SetShareMaterialShaderCodeEnabled(false);
+}
+
+void FModioUGCPackager::RestoreShaderCodeSettings()
+{
+	UE_LOG(ModioUGCEditor, Display, TEXT("Restoring shader code settings"));
+	LoadShaderCodeSettings();
+}
+
+void FModioUGCPackager::PackagePlugin()
+{
+	auto SelectedPlugin = GetSelectedPlugin();
+	FText ValidationErrorMessage;
+	if (!ValidateSelectedSettings(ValidationErrorMessage))
+	{
+		FMessageDialog::Open(EAppMsgType::Ok,
+							 FText::Format(LOCTEXT("PackageUGCError_ValidationFailed", "Validation failed: {0}"),
+										   ValidationErrorMessage));
+		return;
+	}
+
+	if (!IsAllContentSaved(SelectedPlugin.ToSharedRef()))
+	{
+		FEditorFileUtils::SaveDirtyPackages(true, true, true);
+	}
+
+	if (!IsAllContentSaved(SelectedPlugin.ToSharedRef()))
+	{
+		FText PackageModError = FText::Format(
+			LOCTEXT("PackageUGCError_UnsavedContent", "You must save all assets in {0} before you can share it."),
+			FText::FromString(SelectedPlugin->GetName()));
+
 		FMessageDialog::Open(EAppMsgType::Ok, PackageModError);
 		return;
 	}
@@ -500,116 +567,113 @@ void FModioUGCPackager::PackagePlugin()
 				return;
 			}
 
-			auto CopyPackagedPlugin = [this](bool bSucceeded) {
-				if (!bSucceeded)
-				{
-					EnablePackageWidgets(true);
-					return;
-				}
-
-				IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
-				FString StagingDirectory =
-					FPaths::Combine(SelectedSettings.OutputPackagePath, *SelectedSettings.Plugin->GetName());
-
-				const FString UPluginPath = [this, &PlatformFile](const FString& StagingDirectory) {
-					TArray<FString> FoundFiles;
-					PlatformFile.FindFilesRecursively(FoundFiles, *StagingDirectory, TEXT(".uplugin"));
-					if (FoundFiles.Num() == 1)
-					{
-						return FoundFiles[0];
-					}
-					return FString();
-				}(StagingDirectory);
-
-				const FString ContentDirectory = [this, &PlatformFile](const FString& PluginDirectory) {
-					if (PlatformFile.DirectoryExists(*FPaths::Combine(PluginDirectory, FString("Content"))))
-					{
-						return FPaths::Combine(PluginDirectory, FString("Content"));
-					}
-					return FString();
-				}(FPaths::GetPath(UPluginPath));
-
-				if (UPluginPath.IsEmpty() || ContentDirectory.IsEmpty())
-				{
-					UE_LOG(ModioUGCEditor, Error,
-						   TEXT("Failed to find plugin or content directory in staging directory '%s'"),
-						   *StagingDirectory);
-					EnablePackageWidgets(true);
-					return;
-				}
-
-				if (!CorrectUPluginFile(UPluginPath))
-				{
-					UE_LOG(ModioUGCEditor, Error, TEXT("Failed to correct UPlugin file '%s'"), *UPluginPath);
-					EnablePackageWidgets(true);
-					return;
-				}
-
-				const FString ModRootName =
-					FString::Printf(TEXT("%s_%s"), *SelectedSettings.Plugin->GetName(), *SelectedSettings.PlatformName);
-				const FString ModRootPath = FPaths::Combine(SelectedSettings.OutputPackagePath, ModRootName);
-				const FString UPluginPath_CopyTo = FPaths::Combine(ModRootPath, FPaths::GetCleanFilename(UPluginPath));
-				const FString ContentDirectory_CopyTo = FPaths::Combine(ModRootPath, FString("Content"));
-
-				// Create the UGC root directory (to place the .uplugin and content directory in)
-				{
-					if (PlatformFile.DirectoryExists(*ModRootPath))
-					{
-						PlatformFile.DeleteDirectoryRecursively(*ModRootPath);
-					}
-					if (!PlatformFile.CreateDirectoryTree(*ModRootPath))
-					{
-						UE_LOG(ModioUGCEditor, Error, TEXT("Failed to create UGC root directory '%s'"), *ModRootPath);
-						EnablePackageWidgets(true);
-						return;
-					}
-				}
-
-				// Move the .uplugin file to the UGC root directory
-				{
-					if (PlatformFile.FileExists(*UPluginPath_CopyTo))
-					{
-						PlatformFile.DeleteFile(*UPluginPath_CopyTo);
-					}
-					PlatformFile.MoveFile(*UPluginPath_CopyTo, *UPluginPath);
-					UE_LOG(ModioUGCEditor, Log, TEXT("Moved .uplugin file '%s' to '%s'"), *UPluginPath,
-						   *UPluginPath_CopyTo);
-				}
-
-				// Move the content directory to the UGC root directory
-				{
-					if (PlatformFile.DirectoryExists(*ContentDirectory_CopyTo))
-					{
-						PlatformFile.DeleteDirectoryRecursively(*ContentDirectory_CopyTo);
-					}
-					PlatformFile.CopyDirectoryTree(*ContentDirectory_CopyTo, *ContentDirectory, true);
-					PlatformFile.DeleteDirectoryRecursively(*ContentDirectory);
-					UE_LOG(ModioUGCEditor, Log, TEXT("Moved content directory '%s' to '%s'"), *ContentDirectory,
-						   *ContentDirectory_CopyTo);
-				}
-
-				// Delete the staging directory
-				PlatformFile.DeleteDirectoryRecursively(*StagingDirectory);
-
-				UE_LOG(ModioUGCEditor, Log, TEXT("Successfully packaged plugin '%s' for platform '%s' to '%s'"),
-					   *SelectedSettings.Plugin->GetName(), *SelectedSettings.PlatformName, *ModRootPath);
-				UE_LOG(ModioUGCEditor, Log, TEXT("You can now upload the UGC packaged in '%s' to mod.io"),
-					   *ModRootPath);
-
-				EnablePackageWidgets(true);
-
-				// Convenience open the output directory to allow manual zipping
-				FPlatformProcess::ExploreFolder(*ModRootPath);
-			};
-
 			const FString OutputDirectory =
 				FPaths::Combine(SelectedSettings.OutputPackagePath, *SelectedSettings.Plugin->GetName());
 
 			// After the base game cook is completed, start a UAT task to package the Plugin itself
 			CookPlugin_DLC(SelectedSettings.Plugin.ToSharedRef(), OutputDirectory, ProjectFile,
 						   FName(SelectedSettings.PlatformName))
-				.Next(CopyPackagedPlugin);
+				.Next([this](bool bSucceeded) { PostPackagePlugin(bSucceeded); });
 		});
+}
+
+void FModioUGCPackager::PostPackagePlugin(bool bSucceeded)
+{
+	if (!bSucceeded)
+	{
+		EnablePackageWidgets(true);
+		return;
+	}
+
+	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+	FString StagingDirectory = FPaths::Combine(SelectedSettings.OutputPackagePath, *SelectedSettings.Plugin->GetName());
+
+	const FString UPluginPath = [this, &PlatformFile](const FString& StagingDirectory) {
+		TArray<FString> FoundFiles;
+		PlatformFile.FindFilesRecursively(FoundFiles, *StagingDirectory, TEXT(".uplugin"));
+		if (FoundFiles.Num() == 1)
+		{
+			return FoundFiles[0];
+		}
+		return FString();
+	}(StagingDirectory);
+
+	const FString ContentDirectory = [this, &PlatformFile](const FString& PluginDirectory) {
+		if (PlatformFile.DirectoryExists(*FPaths::Combine(PluginDirectory, FString("Content"))))
+		{
+			return FPaths::Combine(PluginDirectory, FString("Content"));
+		}
+		return FString();
+	}(FPaths::GetPath(UPluginPath));
+
+	if (UPluginPath.IsEmpty() || ContentDirectory.IsEmpty())
+	{
+		UE_LOG(ModioUGCEditor, Error, TEXT("Failed to find plugin or content directory in staging directory '%s'"),
+			   *StagingDirectory);
+		EnablePackageWidgets(true);
+		return;
+	}
+
+	if (!CorrectUPluginFile(UPluginPath))
+	{
+		UE_LOG(ModioUGCEditor, Error, TEXT("Failed to correct UPlugin file '%s'"), *UPluginPath);
+		EnablePackageWidgets(true);
+		return;
+	}
+
+	const FString ModRootName =
+		FString::Printf(TEXT("%s_%s"), *SelectedSettings.Plugin->GetName(), *SelectedSettings.PlatformName);
+	const FString ModRootPath = FPaths::Combine(SelectedSettings.OutputPackagePath, ModRootName);
+	const FString UPluginPath_CopyTo = FPaths::Combine(ModRootPath, FPaths::GetCleanFilename(UPluginPath));
+	const FString ContentDirectory_CopyTo = FPaths::Combine(ModRootPath, FString("Content"));
+
+	// Create the UGC root directory (to place the .uplugin and content directory in)
+	{
+		if (PlatformFile.DirectoryExists(*ModRootPath))
+		{
+			PlatformFile.DeleteDirectoryRecursively(*ModRootPath);
+		}
+		if (!PlatformFile.CreateDirectoryTree(*ModRootPath))
+		{
+			UE_LOG(ModioUGCEditor, Error, TEXT("Failed to create UGC root directory '%s'"), *ModRootPath);
+			EnablePackageWidgets(true);
+			return;
+		}
+	}
+
+	// Move the .uplugin file to the UGC root directory
+	{
+		if (PlatformFile.FileExists(*UPluginPath_CopyTo))
+		{
+			PlatformFile.DeleteFile(*UPluginPath_CopyTo);
+		}
+		PlatformFile.MoveFile(*UPluginPath_CopyTo, *UPluginPath);
+		UE_LOG(ModioUGCEditor, Log, TEXT("Moved .uplugin file '%s' to '%s'"), *UPluginPath, *UPluginPath_CopyTo);
+	}
+
+	// Move the content directory to the UGC root directory
+	{
+		if (PlatformFile.DirectoryExists(*ContentDirectory_CopyTo))
+		{
+			PlatformFile.DeleteDirectoryRecursively(*ContentDirectory_CopyTo);
+		}
+		PlatformFile.CopyDirectoryTree(*ContentDirectory_CopyTo, *ContentDirectory, true);
+		PlatformFile.DeleteDirectoryRecursively(*ContentDirectory);
+		UE_LOG(ModioUGCEditor, Log, TEXT("Moved content directory '%s' to '%s'"), *ContentDirectory,
+			   *ContentDirectory_CopyTo);
+	}
+
+	// Delete the staging directory
+	PlatformFile.DeleteDirectoryRecursively(*StagingDirectory);
+
+	UE_LOG(ModioUGCEditor, Log, TEXT("Successfully packaged plugin '%s' for platform '%s' to '%s'"),
+		   *SelectedSettings.Plugin->GetName(), *SelectedSettings.PlatformName, *ModRootPath);
+	UE_LOG(ModioUGCEditor, Log, TEXT("You can now upload the UGC packaged in '%s' to mod.io"), *ModRootPath);
+
+	EnablePackageWidgets(true);
+
+	// Convenience open the output directory to allow manual zipping
+	FPlatformProcess::ExploreFolder(*ModRootPath);
 }
 
 TFuture<bool> FModioUGCPackager::CookProject(const FString& OutputDirectory, const FString& UProjectFile,
@@ -619,7 +683,6 @@ TFuture<bool> FModioUGCPackager::CookProject(const FString& OutputDirectory, con
 
 	if (FPaths::DirectoryExists(FPaths::ProjectDir() / "Releases" / ReleaseVersionName / PlatformNameIni.ToString()))
 	{
-		UE_LOG(ModioUGCEditor, Log, TEXT("Existing release found, skipping base game cook"));
 		Promise->SetValue(true);
 	}
 	else
@@ -628,19 +691,22 @@ TFuture<bool> FModioUGCPackager::CookProject(const FString& OutputDirectory, con
 		const FString CookProjectCommand =
 			MakeUATCommand(UProjectFile, PlatformNameIni, StagingDirectory) + MakeUATParams_BaseGame(UProjectFile);
 
+		UE_LOG(ModioUGCEditor, Display, TEXT("Creating UAT task: `%s`"), *CookProjectCommand);
 		IUATHelperModule::Get().CreateUatTask(
 			CookProjectCommand, FText::FromString(PlatformNameIni.ToString()),
 			FText::FromString("Packaging Base Game..."), FText::FromString("Packaging Base Game..."),
 			FModioUGCEditorStyle::Get().GetBrush(TEXT("ModioUGCEditor.PackageUGCAction")), nullptr,
 			[Promise, StagingDirectory](FString TaskResult, double TimeSec) {
+				UE_LOG(ModioUGCEditor, Display, TEXT("About to begin Async task for UAT"));
 				AsyncTask(ENamedThreads::GameThread, [Promise, TaskResult, StagingDirectory]() {
+					UE_LOG(ModioUGCEditor, Display, TEXT("UAT Completed with result: %s"), *TaskResult);
 					// Clean up the staging directory
 					IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 					PlatformFile.DeleteDirectoryRecursively(*StagingDirectory);
 
 					if (TaskResult == "Completed")
 					{
-						UE_LOG(ModioUGCEditor, Log, TEXT("Successfully cooked project for UGC"));
+						UE_LOG(ModioUGCEditor, Display, TEXT("Successfully cooked project for UGC"));
 						Promise->SetValue(true);
 					}
 					else
@@ -658,8 +724,8 @@ TFuture<bool> FModioUGCPackager::CookProject(const FString& OutputDirectory, con
 TFuture<bool> FModioUGCPackager::CookPlugin_DLC(TSharedRef<IPlugin> Plugin, const FString& OutputDirectory,
 												const FString& UProjectFile, const FName& PlatformNameIni)
 {
-	bool bWasUsingSharedShaderCode = IsShareMaterialShaderCodeEnabled();
-	SetShareMaterialShaderCodeEnabled(false);
+	StoreUGCMetadata();
+	StoreShaderCodeSettings();
 
 	TSharedPtr<TPromise<bool>> Promise = MakeShared<TPromise<bool>>();
 
@@ -669,17 +735,19 @@ TFuture<bool> FModioUGCPackager::CookPlugin_DLC(TSharedRef<IPlugin> Plugin, cons
 	FText PackagingText = FText::Format(LOCTEXT("ModioUGCManagerEditor_PackagePluginTaskName", "Packaging {0}"),
 										FText::FromString(Plugin->GetName()));
 
+	UE_LOG(ModioUGCEditor, Display, TEXT("Creating UAT task: `%s`"), *CookPluginCommand);
 	IUATHelperModule::Get().CreateUatTask(
 		CookPluginCommand, FText::FromString(PlatformNameIni.ToString()), PackagingText, PackagingText,
 		FModioUGCEditorStyle::Get().GetBrush(TEXT("ModioUGCEditor.PackageUGCAction")), nullptr,
-		[Promise, Plugin, bWasUsingSharedShaderCode](FString TaskResult, double TimeSec) {
-			AsyncTask(ENamedThreads::GameThread, [Promise, Plugin, TaskResult, bWasUsingSharedShaderCode]() {
+		[this, Promise, Plugin](FString TaskResult, double TimeSec) {
+			AsyncTask(ENamedThreads::GameThread, [this, Promise, Plugin, TaskResult]() {
 				// Reset our share shader code value to what it was prior to cooking
-				SetShareMaterialShaderCodeEnabled(bWasUsingSharedShaderCode);
+				RestoreShaderCodeSettings();
 
 				if (TaskResult == "Completed")
 				{
-					UE_LOG(ModioUGCEditor, Log, TEXT("Successfully packaged plugin '%s' as UGC"), *Plugin->GetName());
+					UE_LOG(ModioUGCEditor, Display, TEXT("Successfully packaged plugin '%s' as UGC"),
+						   *Plugin->GetName());
 					Promise->SetValue(true);
 				}
 				else
@@ -696,10 +764,12 @@ TFuture<bool> FModioUGCPackager::CookPlugin_DLC(TSharedRef<IPlugin> Plugin, cons
 
 bool FModioUGCPackager::CorrectUPluginFile(const FString& UPluginFilePath)
 {
+	UE_LOG(ModioUGCEditor, Display, TEXT("Attempting to correct uplugin at: %s"), *UPluginFilePath);
+
 	FString Text;
 	if (!FFileHelper::LoadFileToString(Text, *UPluginFilePath))
 	{
-		UE_LOG(ModioUGCEditor, Error, TEXT("Failed to read .uplugin file '%s'"), *UPluginFilePath);
+		UE_LOG(ModioUGCEditor, Error, TEXT("Failed to read .uplugin file"));
 		return false;
 	}
 
@@ -707,44 +777,61 @@ bool FModioUGCPackager::CorrectUPluginFile(const FString& UPluginFilePath)
 	TSharedPtr<FJsonObject> JsonObject = DeserializePluginJson(Text, &OutFailReason);
 	if (!JsonObject.IsValid())
 	{
-		UE_LOG(ModioUGCEditor, Error, TEXT("Failed to deserialize .uplugin file '%s': %s"), *UPluginFilePath,
-			   *OutFailReason.ToString());
+		UE_LOG(ModioUGCEditor, Error, TEXT("Failed to deserialize .uplugin file: %s"), *OutFailReason.ToString());
 		return false;
 	}
+	bool bChangesMade = false;
 
-	bool bExplicitlyLoaded = false;
-	JsonObject->TryGetBoolField(TEXT("ExplicitlyLoaded"), bExplicitlyLoaded);
-	if (bExplicitlyLoaded)
+	bool bJsonExplicitlyLoadedValue = false;
+	JsonObject->TryGetBoolField(TEXT("ExplicitlyLoaded"), bJsonExplicitlyLoadedValue);
+	if (!bJsonExplicitlyLoadedValue)
 	{
-		UE_LOG(ModioUGCEditor, Log, TEXT("Plugin '%s' is already marked as explicitly loaded"), *UPluginFilePath);
-		return true;
+		JsonObject->SetBoolField(TEXT("ExplicitlyLoaded"), true);
+		bChangesMade = true;
+	}
+	else
+	{
+		UE_LOG(ModioUGCEditor, Warning, TEXT(".uplugin is already marked as explicitly loaded"));
 	}
 
-	JsonObject->SetBoolField(TEXT("ExplicitlyLoaded"), true);
-
-	FString CurrentEngineVersion = FEngineVersion::Current().ToString();
-	JsonObject->SetStringField(TEXT("EngineVersion"), CurrentEngineVersion);
-
-	FString NewText;
+	FString JsonEngineVersionValue;
+	JsonObject->TryGetStringField(TEXT("EngineVersion"), JsonEngineVersionValue);
+	FString EngineCompatibleVersion = FEngineVersion::CompatibleWith().ToString();
+	if (JsonEngineVersionValue != EngineCompatibleVersion)
 	{
-		TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&NewText);
-		if (!FJsonSerializer::Serialize(JsonObject.ToSharedRef(), Writer))
+		JsonObject->SetStringField(TEXT("EngineVersion"), EngineCompatibleVersion);
+		bChangesMade = true;
+	}
+	else
+	{
+		UE_LOG(ModioUGCEditor, Warning, TEXT(".uplugin already had compatible version set to %s"),
+			   *EngineCompatibleVersion);
+	}
+
+	if (bChangesMade)
+	{
+		FString NewText;
 		{
-			UE_LOG(ModioUGCEditor, Error, TEXT("Failed to serialize .uplugin file '%s'"), *UPluginFilePath);
+			TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&NewText);
+			if (!FJsonSerializer::Serialize(JsonObject.ToSharedRef(), Writer))
+			{
+				UE_LOG(ModioUGCEditor, Error, TEXT("Failed to serialize .uplugin file"));
+				return false;
+			}
+		}
+
+		IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+		PlatformFile.DeleteFile(*UPluginFilePath);
+
+		if (!FFileHelper::SaveStringToFile(NewText, *UPluginFilePath))
+		{
+			UE_LOG(ModioUGCEditor, Error, TEXT("Failed to write .uplugin file"));
 			return false;
 		}
+
+		UE_LOG(ModioUGCEditor, Log, TEXT("Successfully made changes to .uplugin file"));
 	}
 
-	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
-	PlatformFile.DeleteFile(*UPluginFilePath);
-
-	if (!FFileHelper::SaveStringToFile(NewText, *UPluginFilePath))
-	{
-		UE_LOG(ModioUGCEditor, Error, TEXT("Failed to write .uplugin file '%s'"), *UPluginFilePath);
-		return false;
-	}
-
-	UE_LOG(ModioUGCEditor, Log, TEXT("Successfully marked plugin '%s' as explicitly loaded"), *UPluginFilePath);
 	return true;
 }
 
@@ -753,11 +840,11 @@ void FModioUGCPackager::FindAvailablePlugins(TArray<TSharedRef<IPlugin>>& OutAva
 	OutAvailableGameMods.Empty();
 
 	// Find available game mods from the list of discovered plugins
-
 	for (TSharedRef<IPlugin> Plugin : IPluginManager::Get().GetDiscoveredPlugins())
 	{
 		// All game project plugins that are marked as mods are valid
-		if (Plugin->GetLoadedFrom() == EPluginLoadedFrom::Project && Plugin->GetType() == EPluginType::Mod)
+		if (Plugin->GetLoadedFrom() == EPluginLoadedFrom::Project && Plugin->GetDescriptor().Category == TEXT("UGC") &&
+			(Plugin->GetType() == EPluginType::Mod || Plugin->GetType() == EPluginType::Project))
 		{
 			OutAvailableGameMods.AddUnique(Plugin);
 		}
