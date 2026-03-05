@@ -7,27 +7,127 @@ custom_edit_url: https://github.com/modio/modio-ue4-internal/blob/develop/Plugin
 
 # ModioUGC
 
-**ModioUGC** (along with **ModioUGC Editor**) is a module specifically for our Unreal Engine Plugin that facilitates PAK file loading and unloading for Unreal Engine projects.
+**ModioUGC** (along with **ModioUGC Editor**) is a module specifically for our Unreal Engine Plugin that facilitates UGC creation, packaging, and runtime loading for Unreal Engine projects. It provides an opinionated framework for treating User-Generated Content as content-only plugins, solving the complex challenges of cooking, mounting, and discovering UGC at runtime.
 
-:::caution
-This plugin is currently released in an experimental state. Functionality is subject to change. Please use with caution in production environments.
-:::
+This guide covers:
 
-UGC is authored as content-only plugins. Each plugin represents a piece of UGC, where content such as textures, meshes, blueprints, etc., can be added. The UGC plugin is then packaged into the following files:
-
-- A `.pak` file (always created)
-- `.ucas` and `.utoc` files (created when Io Store is used)
-- An accompanying `.uplugin` file for mounting at runtime
-
-This process is similar to how the Project Launcher packages a plugin as DLC. The packaged UGC can be compressed, optionally uploaded to mod.io, downloaded, and applied in-game using the runtime module.
-
-:::tip
-To learn more about UGC loading for Unreal Engine, see [UGC Best Practices](/unreal/ugc-best-practices).
-:::
+* [What's included](#whats-included)
+* [UGC in Unreal Engine](#ugc-in-unreal-engine)
+* [How ModioUGC works](#how-modiougc-works)
+* [Next steps](#next-steps)
 
 ## What's included
 
-ModioUGC features two main modules:
+ModioUGC provides tools and systems for the complete UGC lifecycle:
 
-- **Editor Module**: Handles UGC creation, management, and packaging.
-- **Runtime Module**: Manages mounting of mods (pak files) to the game.
+* **Editor Wizard**: Create standardized content-only plugin structures for UGC packages
+* **Packaging Tools**: Cook and package UGC content as DLC plugins for target platforms
+* **Runtime Subsystem**: Automatically discover, mount, and register UGC packages at runtime (as well as unmount and unregister)
+* **Asset Registry Integration**: Seamlessly integrate UGC assets with Unreal's Asset Registry and Asset Manager for discovery and querying
+* **Provider System**: Flexible interfaces for sourcing UGC from mod.io, local directories, or custom sources
+* **IoStore Support**: Full compatibility with both traditional PAK files and modern IoStore (`.ucas`/`.utoc`) formats
+
+## UGC in Unreal Engine
+
+Supporting User-Generated Content in Unreal Engine presents several significant technical challenges that ModioUGC is designed to address.
+
+### Cooking
+
+Unreal Engine's asset cooking process converts raw uassets into platform-specific formats optimized for runtime performance. This poses challenges within a UGC context:
+
+- **Platform specificity**: Assets must be cooked for each target platform (Windows, consoles, mobile)
+- **Engine/Game version matching**: UGC must be cooked with the exact engine and release version of the game
+- **Content isolation**: UGC should not duplicate base game assets, but must correctly reference them
+- **Metadata preservation**: Information about assets must be preserved through the cooking process to allow for stable runtime discovery
+
+### Mounting
+
+Loading packaged content at runtime requires integration with Unreal's file system:
+
+- **PAK file mounting**: `.pak` files must be mounted to the virtual file system at specific mount points
+- **Editor complexity**: Iterating on a UGC integration in the editor is complex due to a difference in how assets are managed in editor vs cooked builds
+- **Shader compatibility**: Material shader libraries must be compatible between the base game and UGC
+
+### Discovery
+
+Once UGC is mounted, the game must be able to query and use the content:
+
+- **Asset Registry population**: Mounted assets must be registered with Unreal's Asset Registry
+- **Asset Manager integration**: Content should be discoverable through standard `UAssetManager` queries
+- **Sandboxed Storage**: The system must be able to load UGC from any file directory on the system
+- **Dynamic updates**: The system must handle UGC being added or removed while the game is running
+
+## How ModioUGC works
+
+ModioUGC addresses these challenges through a structured, plugin-based architecture.
+
+### UGC as content-only plugins
+
+Rather than handling loose asset files, ModioUGC treats each piece of UGC as a self-contained **Content-Only Plugin**:
+
+```
+MyModPlugin/
+├── MyModPlugin.uplugin       # Plugin descriptor
+└── Content/
+    └── Paks/
+        └── Windows/
+            ├── MyModPlugin-Windows.pak    # Cooked content
+            ├── MyModPlugin-Windows.ucas   # (if IoStore enabled)
+            └── MyModPlugin-Windows.utoc   # (if IoStore enabled)
+```
+
+This approach provides several benefits:
+
+- **Isolation**: Each UGC package is independent with its own content directory
+- **Native engine support**: Unreal Engine already understands plugin loading and lifecycle
+- **Metadata storage**: The `.uplugin` file provides a standard location for version, author, and dependency information
+- **Dependency management**: Plugins can declare dependencies on other plugins or the base game
+
+### The ModioUGC pipeline
+
+The plugin provides tools for each stage of the UGC lifecycle:
+
+#### 1. Creation (Editor Tools)
+
+The **UGC Plugin Wizard** generates the correct folder structure and files:
+- Creates a content-only plugin with proper `.uplugin` settings
+- Generates the required `UUGC_Metadata` data asset for Asset Manager integration
+- Sets up the plugin for explicit loading (required for proper unloading at runtime)
+
+#### 2. Packaging (ModioUGCPackager)
+
+The **UGC Packager** wraps Unreal's `RunUAT` automation tool to cook content as DLC:
+- Ensures only UGC plugin content is cooked (not base game assets)
+- Handles platform-specific cooking arguments automatically
+- Supports both traditional PAK and modern IoStore workflows
+- Corrects `.uplugin` metadata post-packaging for proper runtime behavior
+
+#### 3. Runtime Loading (UGC Subsystem)
+
+The `UUGCSubsystem` manages UGC discovery and loading:
+- **Provider Pattern**: Uses `IUGCProvider` interface to locate UGC packages
+  - `UModioUGCProvider`: Discovers UGC installed via the mod.io plugin
+  - `USideLoadUGCProvider`: Loads UGC from a local directory (useful for testing)
+- **Automatic Discovery**: Scans provider paths for valid `.uplugin` files
+- **PAK Mounting**: Handles low-level mounting of `.pak`/`.ucas`/`.utoc` files
+- **Asset Registration**: Populates Unreal's Asset Registry (and optionally Asset Manager) with mounted content
+- **Lifecycle Management**: Supports mounting, unmounting, and refreshing UGC at runtime
+
+### Accessing UGC content
+
+Once the subsystem has mounted UGC, content becomes available through standard Unreal APIs:
+
+```cpp
+// Query all maps (including those from UGC)
+UAssetManager& AssetManager = UAssetManager::Get();
+TArray<FPrimaryAssetId> MapIds;
+AssetManager.GetPrimaryAssetIdList(FPrimaryAssetType("Map"), MapIds);
+```
+
+UGC assets are treated as first-class content, indistinguishable from built-in game assets.
+
+## Next steps
+
+To learn more about UGC loading for Unreal Engine, see [UGC Best Practices](/unreal/ugc-best-practices).
+
+Continue to the [Getting Started](/unreal/modio-ugc/getting-started) guide.

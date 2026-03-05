@@ -86,9 +86,11 @@ int32 UModioUGCPreCookCommandlet::Main(const FString& Params)
 
 		if (!UPluginPath.IsEmpty())
 		{
-			UGCPackager->StoreUGCMetadata(FoundPlugin);
-			UGCPackager->StoreShaderCodeSettings();
-			bResult = true;
+			bResult = UGCPackager->StoreUGCMetadata(FoundPlugin);
+			if (bResult)
+			{
+				UGCPackager->StoreShaderCodeSettings();
+			}
 		}
 	}
 	else

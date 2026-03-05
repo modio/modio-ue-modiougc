@@ -42,8 +42,8 @@ public:
 	TFuture<bool> CookPlugin_DLC(TSharedRef<class IPlugin> Plugin, const FString& OutputDirectory,
 								 const FString& UProjectFile, const FName& PlatformNameIni);
 
-	void StoreUGCMetadata();
-	void StoreUGCMetadata(const TSharedPtr<IPlugin>& Plugin);
+	bool StoreUGCMetadata();
+	bool StoreUGCMetadata(const TSharedPtr<IPlugin>& Plugin);
 
 	void StoreShaderCodeSettings();
 	void RestoreShaderCodeSettings();

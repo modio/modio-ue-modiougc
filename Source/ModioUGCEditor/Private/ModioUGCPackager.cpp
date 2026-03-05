@@ -429,89 +429,93 @@ TSharedPtr<IPlugin> FModioUGCPackager::GetSelectedPlugin() const
 	return nullptr;
 }
 
-void FModioUGCPackager::StoreUGCMetadata()
+bool FModioUGCPackager::StoreUGCMetadata()
 {
 	const TSharedPtr<IPlugin> SelectedPlugin = GetSelectedPlugin();
-	StoreUGCMetadata(SelectedPlugin);
+	return StoreUGCMetadata(SelectedPlugin);
 }
 
-void FModioUGCPackager::StoreUGCMetadata(const TSharedPtr<IPlugin>& Plugin)
+bool FModioUGCPackager::StoreUGCMetadata(const TSharedPtr<IPlugin>& Plugin)
 {
+	auto ErrorWithDialog = [](const FText& Message) 
+	{
+		if (!Message.IsEmpty())
+		{
+			UE_LOG(ModioUGCEditor, Error, TEXT("%s"), *Message.ToString());
+			// Show error only in editor, not in commandlet mode
+			if (GIsEditor && !IsRunningCommandlet())
+			{
+				FMessageDialog::Open(EAppMsgType::Ok, Message);
+			}
+		}
+	};
+
 	FString PackagePath = Plugin->GetMountedAssetPath().LeftChop(1);
 	// e.g. "/RedSpaceship/UUGC_Metadata.UUGC_Metadata"
 	FString PreferredDataPath = PackagePath / UUGC_Metadata::GetDefaultAssetName();
 
 	// Load it from disk
-	UE_LOG(ModioUGCEditor, Display, TEXT("Attempting store data on UUGC_Metadata located at: `%s`"),
+	UE_LOG(ModioUGCEditor, Display, TEXT("Attempting load UUGC_Metadata asset from: `%s`"),
 		   *PreferredDataPath);
 	UObject* AssetObject = StaticLoadObject(UUGC_Metadata::StaticClass(), nullptr, *PreferredDataPath);
-	UUGC_Metadata* Metadata = Cast<UUGC_Metadata>(AssetObject);
-	if (Metadata)
+	if (AssetObject == nullptr)
 	{
-		UE_LOG(ModioUGCEditor, Display, TEXT("loaded UUGC_Metadata"));
-		Metadata->DebugLogValues();
-		Metadata->UnrealVersion = FEngineVersion::CompatibleWith().ToString();
-		UE_LOG(ModioUGCEditor, Display, TEXT("Setting Metadata `UnrealVersion` to `%s`"), *Metadata->UnrealVersion);
+		ErrorWithDialog(FText::Format(LOCTEXT("PackageUGCError_MissingMetadataAsset",
+											  "Failed to load metadata asset calling `StaticLoadObject` at {0}."),
+									  FText::FromString(PreferredDataPath)));
+		return false;
+	}
 
-		Metadata->bIoStoreEnabled = IsIoStoreEnabled();
-		UE_LOG(ModioUGCEditor, Display, TEXT("Setting Metadata `bIoStoreEnabled` to `%hhd`"),
-			   Metadata->bIoStoreEnabled);
+	UUGC_Metadata* Metadata = Cast<UUGC_Metadata>(AssetObject);
+	if (Metadata == nullptr)
+	{
+		ErrorWithDialog(FText::Format(LOCTEXT("PackageUGCError_MissingMetadataAsset",
+												"Failed to load metadata asset calling `StaticLoadObject` at {0}."),
+										FText::FromString(PreferredDataPath)));
+		return false;
+	}
 
-		// Mark dirty so it saves properly
-		Metadata->MarkPackageDirty();
+	// Successfully loaded the metadata. Store the changes required.
+	UE_LOG(ModioUGCEditor, Display, TEXT("Successfully loaded UUGC_Metadata:"));
+	Metadata->DebugLogValues();
+	Metadata->UnrealVersion = FEngineVersion::CompatibleWith().ToString();
+	Metadata->bIoStoreEnabled = IsIoStoreEnabled();
 
-		Metadata->Modify();
-		Metadata->PostEditChange();
+	UE_LOG(ModioUGCEditor, Display, TEXT("Stored data:"));
+	Metadata->DebugLogValues();
 
-		if (UPackage* Package = Metadata->GetOutermost())
+	// Mark dirty so it saves properly
+	Metadata->MarkPackageDirty();
+	Metadata->Modify();
+	Metadata->PostEditChange();
+
+	if (UPackage* Package = Metadata->GetOutermost())
+	{
+		// Ensure the package is saved to disk
+		FString PackageFilename;
+		if (FPackageName::TryConvertLongPackageNameToFilename(Package->GetName(), PackageFilename,
+															  FPackageName::GetAssetPackageExtension()))
 		{
-			// Ensure the package is saved to disk
-			FString PackageFilename;
-			if (FPackageName::TryConvertLongPackageNameToFilename(Package->GetName(), PackageFilename,
-																  FPackageName::GetAssetPackageExtension()))
-			{
-				FSavePackageArgs SavePackageArgs;
-				SavePackageArgs.TopLevelFlags = EObjectFlags::RF_Standalone;
-				UPackage::SavePackage(Package, Metadata, *PackageFilename, SavePackageArgs);
-				UE_LOG(ModioUGCEditor, Display, TEXT("Successfully saved package to '%s'"), *PackageFilename);
-			}
-			else
-			{
-				UE_LOG(ModioUGCEditor, Error, TEXT("Failed to resolve package filename for '%s'"), *Package->GetName());
-			}
+			FSavePackageArgs SavePackageArgs;
+			SavePackageArgs.TopLevelFlags = EObjectFlags::RF_Standalone;
+			UPackage::SavePackage(Package, Metadata, *PackageFilename, SavePackageArgs);
+			UE_LOG(ModioUGCEditor, Display, TEXT("Successfully saved package to '%s'"), *PackageFilename);
+			return true;
 		}
 		else
 		{
-			UE_LOG(ModioUGCEditor, Error, TEXT("Could not get the outermost on the metadata"));
+			UE_LOG(ModioUGCEditor, Error, TEXT("Failed to resolve package filename for '%s'"), *Package->GetName());
+			return false;
 		}
-		return;
-	}
-
-	FText PackageModError;
-	if (AssetObject == nullptr)
-	{
-		PackageModError = FText::Format(LOCTEXT("PackageUGCError_MissingMetadataAsset",
-												"Failed to load metadata asset calling `StaticLoadObject` at {0}."),
-										FText::FromString(PreferredDataPath));
-	}
-	else if (Metadata == nullptr || !Metadata->IsValidLowLevel())
-	{
-		PackageModError = FText::Format(
-			LOCTEXT("PackageUGCError_MissingMetadataAsset", "Failed to cast metadata asset to UUGC_Metadata at {0}."),
-			FText::FromString(PreferredDataPath));
 	}
 	else
 	{
-		PackageModError = FText::Format(
-			LOCTEXT("PackageUGCError_MissingMetadataAsset", "Unknown error loading UUGC_Metadata at {0}."),
-			FText::FromString(PreferredDataPath));
+		UE_LOG(ModioUGCEditor, Error, TEXT("Could not get the outermost on the metadata"));
+		return false;
 	}
 
-	if (!PackageModError.IsEmpty())
-	{
-		UE_LOG(ModioUGCEditor, Error, TEXT("%s"), *PackageModError.ToString());
-		FMessageDialog::Open(EAppMsgType::Ok, PackageModError);
-	}
+	// The metadata was successfully stored
+	return true;
 }
 
 void FModioUGCPackager::StoreShaderCodeSettings()
@@ -724,10 +728,17 @@ TFuture<bool> FModioUGCPackager::CookProject(const FString& OutputDirectory, con
 TFuture<bool> FModioUGCPackager::CookPlugin_DLC(TSharedRef<IPlugin> Plugin, const FString& OutputDirectory,
 												const FString& UProjectFile, const FName& PlatformNameIni)
 {
-	StoreUGCMetadata();
+	TSharedPtr<TPromise<bool>> Promise = MakeShared<TPromise<bool>>();
+
+	// If we fail to store the metadata, it's likely a serious issue so we should abort packaging
+	bool bStoredMetadata = StoreUGCMetadata();
+	if (!bStoredMetadata)
+	{
+		Promise->SetValue(false);
+		return Promise->GetFuture();
+	}
 	StoreShaderCodeSettings();
 
-	TSharedPtr<TPromise<bool>> Promise = MakeShared<TPromise<bool>>();
 
 	const FString CookPluginCommand =
 		MakeUATCommand(UProjectFile, PlatformNameIni, OutputDirectory) + MakeUATParams_DLC(*Plugin->GetName());

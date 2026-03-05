@@ -1,25 +1,122 @@
 ---
 id: getting-started
-title: ModioUGC
+title: Getting Started
 slug: /unreal/modio-ugc/getting-started
 custom_edit_url: https://github.com/modio/modio-ue4-internal/blob/develop/Plugins/ModioUGC/Doc/doc_root/en-us/ue-modio-ugc/getting-started.mdx
 ---
 
-# ModioUGC for Unreal Engine
+# Getting Started
 
-The [ModioUGC](/unreal/modio-ugc) feature is composed of two core components: `UUGCSubsystem`, which handles UGC discovery and loading, and `IUGCProvider`, which interacts with UGC providers to determine availability and locate UGC packages.
+The **ModioUGC** plugin provides a comprehensive framework for the entire User-Generated Content lifecycle in Unreal Engine. It bridges the gap between content creation in the editor and dynamic loading during gameplay.
+
+To achieve this, the system is divided into two main components:
+- **Creation Tools**: An **Editor Wizard** and specialized **Packaging Tools** that transform standard Unreal plugins into platform-optimized UGC packages.
+- **Runtime Subsystem**: A robust **UGC Subsystem** and **Provider** architecture that automatically manages discovery, mounting, and registration of content without requiring the engine to restart.
+
+This guide follows the natural workflow, starting with content creation then moving onto accessing your mounted assets at runtime.
 
 This guide covers: 
 
-* [UGC Subsystem](#ugc-subsystem)
-* [UGC Provider](#ugc-provider)
-* [Initialization](#initialization)
-* [Mounting and registering UGC assets](#mounting-and-registering-ugc-assets)
-* [Accessing assets](#accessing-assets)
+**Development & Packaging**
 * [Creating UGC](#creating-ugc)
 * [Packaging UGC](#packaging-ugc)
 * [In-editor testing](#in-editor-testing)
+
+**Runtime Setup**
+* [UGC Subsystem](#ugc-subsystem)
+* [UGC Provider](#ugc-provider)
+* [Initialization](#initialization)
+
+**Management & Usage**
+* [Mounting and registering UGC assets](#mounting-and-registering-ugc-assets)
+* [Accessing assets](#accessing-assets)
 * [Troubleshooting](#troubleshooting)
+
+## Creating UGC
+
+The ModioUGC plugin includes additional editor tooling to facilitate the creation and packaging of UGC content for deployment.
+
+Clicking the **mod.io** button in the editor's top toolbar then selecting **Create & Upload** will open the mod.io editor window.
+
+![Create and Upload](img/create-ugc/create_ugc.jpg)
+
+From here, you can select the **Create UGC** button to open a wizard for creating a content-only UGC plugin.
+
+![Creating a new UGC](img/create-ugc/create-ugc-button.jpg)
+
+This process generates a new plugin structure for your UGC package. When creating content, avoid dependencies on engine assets, as this can cause issues during packaging.
+
+After the UGC is created, content can be added by creating new assets or importing existing ones. This process is typically performed by UGC creators using the Unreal Editor or your provided mod kit, etc.
+
+### Required metadata
+
+Each UGC package must include a `UUGC_Metadata` data asset, which is automatically generated during the creation process. This metadata defines:
+
+- The **primary asset type**
+- The **base asset class**
+- The **content path**, usually set to the name of your UGC folder (since all assets should reside within it)
+
+For example, if you're creating a new UGC map, it should match a defined primary asset type in your project's `AssetManager` settings to ensure it can be discovered and loaded correctly.
+
+![UGC Metadata data asset](img/create-ugc/ugc_metadata_1.jpg)
+![Asset Manager primary asset types](img/create-ugc/ugc_metadata_2.jpg)
+
+## Packaging UGC
+
+The ModioUGC plugin provides a second editor tool for packaging UGC content as a cooked DLC plugin for a selected platform.
+
+Clicking the **mod.io** button in the editor's top toolbar then selecting **Create & Upload** will open the mod.io editor window.
+
+![Create and Upload](img/create-ugc/create_ugc.jpg)
+
+From here, you can select the **Package UGC** button to open a dialog where you can select the UGC plugin and the target platform for packaging.
+
+![Packaging a UGC](img/package-ugc/package_ugc_button.jpg)
+
+Once the packaging process is complete, a folder is generated containing:
+
+- The `.uplugin` file
+- A `Content` directory with:
+  - The `.pak` file
+  - (If Io Store is enabled) `.ucas` and `.utoc` files
+
+This folder represents the packaged UGC and is ready to be mounted by the ModioUGC runtime.
+
+You can also compress the contents of this folder into a `.zip` archive to upload to [mod.io](https://mod.io).
+
+![Compressing the UGC](img/package-ugc/compress_mod.jpg)  
+![Uploading the UGC](img/package-ugc/upload_mod.jpg)
+
+## In-editor testing
+
+Testing can also be performed in-editor, although it is disabled by default. To enable it:
+
+1. Navigate to **Edit > Project Settings > Engine -> Cooker** and check the **Allow Cooked Content In The Editor** option.
+
+    ![Allowing Cooked Content In The Editor](img/editor-testing/allow_cooked_content_in_editor.jpg)
+
+2. Navigate to **Edit > Project Settings > Plugins > UGC Settings** and check the **Enable UGC Provider in Editor** option.
+
+    ![Enabling UGC Provider in Editor](img/editor-testing/enable_ugc_provider_in_editor.jpg)
+
+3. Open up your DefaultEngine.ini config file and add allowing unversioned content in editor to the Cooker Settings"
+
+```text
+[/Script/UnrealEd.CookerSettings]
+s.AllowUnversionedContentInEditor=True
+```
+
+:::note
+A current limitation for in-editor testing requires the project to have Io Store disabled both when creating the UGC, as well as when attempting to load it.
+:::
+
+To disable the Io Store, navigate to **Edit > Project Settings > Packaging** and set the **Use Io Store** option to **False**.
+
+![Disabling the Io Store](img/editor-testing/disable_io_store.jpg)
+
+:::important
+Matching these settings is critical: the project and the UGC must share the same Io Store configuration to remain compatible. A project cannot mount UGC if one has Io Store enabled and the other does not.
+:::
 
 ## UGC Subsystem
 
@@ -55,11 +152,11 @@ The `IUGCProvider` interface is responsible for supplying information about the 
 
 The core method, `GetInstalledUGCPaths`, defines the directories the system should scan to discover UGC. These paths must point to locations containing a `.uplugin` file alongside its associated UGC files (e.g., `.pak`, `.ucas`, `.utoc`) within a `Content` directory.
 
-### Example
+### Example directory structure
 
 If your `.uplugin` file is located at `C:\MyUGCFolder\RedSpaceship.uplugin` and the UGC files are located in `C:\MyUGCFolder\Content\Paks\Windows\`, then the path returned by `GetInstalledUGCPaths` should be `C:\MyUGCFolder`.
 
-### Included Providers
+### Included providers
 
 The plugin includes two example implementations:
 
@@ -136,10 +233,9 @@ FModUGCPathMap UMyUGCProvider::GetInstalledUGCPaths_Implementation()
   </TabItem>
 </Tabs>
 
-
 ## Initialization
 
-### Manual
+### Manual initialization
 
 The general expectation is your game will handle the initialization of ModioUGC providers when appropriate. 
 
@@ -163,12 +259,11 @@ The general expectation is your game will handle the initialization of ModioUGC 
 </TabItem>
 </Tabs>
 
-### Automatic
+### Automatic initialization
 There is also an option to automatically perform initialization. This will create and set a new `UModioUGCProvider` object as soon as the UGC Subsystem initializes.
 
 Navigate to **Edit > Project Settings > Plugins > mod.io UGC** and check the **Auto Initialize UGC Provider** option.
 ![Auto Initialize UGC Provider](img/initialization/auto-init.jpg)
-
 
 ## Mounting and registering UGC assets
 
@@ -241,98 +336,7 @@ Alternatively, you can use the `AssetRegistry` like so:
 	}
 ```
 
-## Creating UGC
-
-The ModioUGC plugin includes additional editor tooling to facilitate the creation and packaging of UGC content for deployment.
-
-Clicking the **mod.io** button in the editor's top toolbar then selecting **Create & Upload** will open the mod.io editor window.
-
-![Create and Upload](img/create-ugc/create_ugc.jpg)
-
-From here, you can select the **Create UGC** button to open a wizard for creating a content-only UGC plugin.
-
-![Creating a new UGC](img/create-ugc/create-ugc-button.jpg)
-
-This process generates a new plugin structure for your UGC package. When creating content, avoid dependencies on engine assets, as this can cause issues during packaging.
-
-After the UGC is created, content can be added by creating new assets or importing existing ones. This process is typically performed by UGC creators using the Unreal Editor or your provided mod kit, etc.
-
-### Required Metadata
-
-Each UGC package must include a `UUGC_Metadata` data asset, which is automatically generated during the creation process. This metadata defines:
-
-- The **primary asset type**
-- The **base asset class**
-- The **content path**, usually set to the name of your UGC folder (since all assets should reside within it)
-
-For example, if you're creating a new UGC map, it should match a defined primary asset type in your project's `AssetManager` settings to ensure it can be discovered and loaded correctly.
-
-![UGC Metadata data asset](img/create-ugc/ugc_metadata_1.jpg)
-![Asset Manager primary asset types](img/create-ugc/ugc_metadata_2.jpg)
-
-
-
-## Packaging UGC
-
-The ModioUGC plugin provides a second editor tool for packaging UGC content as a cooked DLC plugin for a selected platform.
-
-Clicking the **mod.io** button in the editor's top toolbar then selecting **Create & Upload** will open the mod.io editor window.
-
-![Create and Upload](img/create-ugc/create_ugc.jpg)
-
-From here, you can select the **Package UGC** button to open a dialog where you can select the UGC plugin and the target platform for packaging.
-
-![Packaging a UGC](img/package-ugc/package_ugc_button.jpg)
-
-Once the packaging process is complete, a folder is generated containing:
-
-- The `.uplugin` file
-- A `Content` directory with:
-  - The `.pak` file
-  - (If Io Store is enabled) `.ucas` and `.utoc` files
-
-This folder represents the packaged UGC and is ready to be mounted by the ModioUGC runtime.
-
-You can also compress this folder into a `.zip` archive to upload to [mod.io](https://mod.io).
-
-![Compressing the UGC](img/package-ugc/compress_mod.jpg)  
-![Uploading the UGC](img/package-ugc/upload_mod.jpg)
-
-
-
-
-
-## In-editor testing
-
-Testing can also be performed in-editor, although it is disabled by default. To enable it:
-
-1. Navigate to **Edit > Project Settings > Engine -> Cooker** and check the **Allow Cooked Content In The Editor** option.
-
-    ![Allowing Cooked Content In The Editor](img/editor-testing/allow_cooked_content_in_editor.jpg)
-
-2. Navigate to **Edit > Project Settings > Plugins > UGC Settings** and check the **Enable UGC Provider in Editor** option.
-
-    ![Enabling UGC Provider in Editor](img/editor-testing/enable_ugc_provider_in_editor.jpg)
-
-3. Open up your DefaultEngine.ini config file and add allowing unversioned content in editor to the Cooker Settings"
-
-```text
-[/Script/UnrealEd.CookerSettings]
-s.AllowUnversionedContentInEditor=True
-```
-
-:::note
-A current limitation for in-editor testing requires the project to have Io Store disabled both when creating the UGC, as well as when attempting to load it.
-:::
-
-To disable the Io Store, navigate to **Edit > Project Settings > Packaging** and set the **Use Io Store** option to **False**.
-
-![Disabling the Io Store](img/editor-testing/disable_io_store.jpg)
-
-Also, please note that it's not possible to run the project with UGC packaged with Io Store enabled, and vice versa. UGC must be packaged with the same Io Store setting as the project.
-
 ## Troubleshooting
-
 
 To verify if the UGC files were packaged correctly, ensure the following:
 
