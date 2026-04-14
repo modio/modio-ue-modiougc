@@ -214,6 +214,12 @@ public:
 	*/
     void SetFilePathSanitizationFn(TFunction<FString(FString&)> InFunc);
 
+	/**
+	 * Sets a function to prepare the filesystem for discovering UGC paths.
+	 * For example, some platforms may require mounting a directory to access its contents
+	 */
+	void SetPrepareFilesystemToUsePathFn(TFunction<bool(const FString&)> InFunc);
+
 protected:
 	//~ Begin IModEnabledStateProvider Interface
 	virtual bool NativeQueryIsModEnabled(FGenericModID ModID) override;
@@ -315,5 +321,10 @@ private:
 	 * Function to sanitize file paths for UGC packages
 	 * This should be used to ensure that file paths are valid and follow the expected format of UGC package storage.
 	 */
-	TFunction<FString(FString&)> FilePathSanitizationFn;
+	TFunction<FString(FString&)> FilePathSanitizationFn = nullptr;
+
+	/**
+	 * Function to prepare filesystem to discover UGC paths
+	 */
+	TFunction<bool(const FString&)> PrepareFilesystemToUsePathFn = nullptr;
 };

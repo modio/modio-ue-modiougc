@@ -227,16 +227,7 @@ bool FUGCPackage::RegisterPrimaryAssets()
 
 		bool bUseIoStore = false;
 		GConfig->GetBool(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("bUseIoStore"), bUseIoStore, GGameIni);
-#if WITH_EDITOR
-		// When consuming in the editor, we just care about what the UGC was cooked with.
-		if (PackageMetadata->bIoStoreEnabled)
-		{
-			UE_LOG(LogModioUGC, Error,
-				   TEXT("bUseIoStore was enabled for UGC %s when cooked. This UGC will not be mounted in editor."),
-				   *FriendlyName);
-			return false;
-		}
-#else
+		
 		if (bUseIoStore != PackageMetadata->bIoStoreEnabled)
 		{
 			UE_LOG(
@@ -246,7 +237,6 @@ bool FUGCPackage::RegisterPrimaryAssets()
 				(bUseIoStore ? TEXT("TRUE") : TEXT("FALSE")));
 			return false;
 		}
-#endif
 
 		if (PackageMetadata->PrimaryAssetTypesToScan.Num() == 0)
 		{

@@ -13,6 +13,7 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "IPlatformFilePak.h"
 #include "LevelEditor.h"
+#include "Misc/AutomationTest.h"
 #include "Misc/MessageDialog.h"
 #include "ModioEditorUtilityFunctions.h"
 #include "ModioUGCEditorSettings.h"
@@ -122,17 +123,23 @@ void FModioUGCEditorModule::TogglePakFileOverride(bool bEnable)
 	{
 		if (!bEngineExitRequested)
 		{
-			if (UUGCSubsystem* UGCSubsystem = GEngine->GetEngineSubsystem<UUGCSubsystem>())
+			// Skip unmounting during automation tests — the test manages its own UGC lifecycle
+			// and unmounting here while PIE objects are still alive causes assertion failures.
+			const bool bIsAutomationRunning = FAutomationTestFramework::GetInstance().GetCurrentTest() != nullptr;
+			if (!bIsAutomationRunning)
 			{
-				TArray<FUGCPackage> Packages;
-				UGCSubsystem->EnumerateAllUGCPackages([&Packages](const FUGCPackage& Package) {
-					Packages.Add(Package);
-					return true;
-				});
-
-				for (FUGCPackage& Package : Packages)
+				if (UUGCSubsystem* UGCSubsystem = GEngine->GetEngineSubsystem<UUGCSubsystem>())
 				{
-					UGCSubsystem->UnmountUGCPackage(Package, true);
+					TArray<FUGCPackage> Packages;
+					UGCSubsystem->EnumerateAllUGCPackages([&Packages](const FUGCPackage& Package) {
+						Packages.Add(Package);
+						return true;
+					});
+
+					for (FUGCPackage& Package : Packages)
+					{
+						UGCSubsystem->UnmountUGCPackage(Package, true);
+					}
 				}
 			}
 		}

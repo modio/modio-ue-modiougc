@@ -20,16 +20,17 @@ This plugin requires the core mod.io plugin to be installed alongside it. Suppor
 |===
 |Engine Version | Last Release
 |UE5.3 | 2025.9
-|UE5.4 | Current
+|UE5.4 | 2026.3
 |UE5.5 | Current
 |UE5.6 | Current
+|UE5.7 | Current
 |===
 
 ### Platform compatability
 
 The ModioUGC plugin supports Windows, Linux, LinuxArm64, Mac, iOS and Android as part of the public release.
 
-For access to Windows (GDK), XBox, Playstation 4, Playstation 5 or Switch, please https://docs.mod.io/support/contacts/[contact us].
+For access to Windows (GDK), XBox, Playstation 4, Playstation 5, Switch or Switch 2, please https://docs.mod.io/support/contacts/[contact us].
 
 == Features
 

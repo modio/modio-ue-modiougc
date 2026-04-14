@@ -21,7 +21,9 @@ public class ModioUGC : ModuleRules
             new string[]
             {
                 "Core",
-                "Modio"
+                "Modio",
+                "GameplayTags",
+                "StructUtils"
             }
         );
 
@@ -44,6 +46,11 @@ public class ModioUGC : ModuleRules
             }
         );
 
+        if(Target.bBuildEditor)
+        {
+            PrivateDependencyModuleNames.Add("UnrealEd");
+        }
+
         PublicDefinitions.AddRange(new string[]
         {
             "UGC_SUPPORTED_PLATFORM=1",
@@ -59,5 +66,7 @@ public class ModioUGC : ModuleRules
         {
             Path.Combine(ModuleDirectory, "Private")
         });
+
+        //bUseUnity = false;
     }
 }

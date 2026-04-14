@@ -97,7 +97,7 @@ FString FModioUGCPackager::MakeUATCommand(const FString& UProjectFile, const FNa
 		CommandLine += " -compressed";
 	}
 
-	// Taken from TurnkeySupportModule.cpp
+// Taken from TurnkeySupportModule.cpp
 	{
 		UProjectPackagingSettings* AllPlatformPackagingSettings = GetMutableDefault<UProjectPackagingSettings>();
 
@@ -106,13 +106,18 @@ FString FModioUGCPackager::MakeUATCommand(const FString& UProjectFile, const FNa
 #endif
 
 		bool bIsProjectBuildTarget = false;
-		const FTargetInfo* BuildTargetInfo =
-#if UE_VERSION_NEWER_THAN(5, 2, 0)
-			PlatformsSettings->
+		const FTargetInfo* BuildTargetInfo = nullptr;
+
+#if !UE_VERSION_OLDER_THAN(5, 7, 0)
+		FString BuildTargetName = PlatformsSettings->PackageBuildTarget;
+		BuildTargetInfo = PlatformsSettings->GetBuildTargetInfo(BuildTargetName, bIsProjectBuildTarget);
+#elif UE_VERSION_NEWER_THAN(5, 2, 0)
+		// 5.3 - 5.6: per-platform build target on UPlatformsMenuSettings
+		BuildTargetInfo = PlatformsSettings->GetBuildTargetInfoForPlatform(PlatformNameIni, bIsProjectBuildTarget);
 #else
-			AllPlatformPackagingSettings->
+		// 5.2 and earlier: per-platform build target on UProjectPackagingSettings
+		BuildTargetInfo = AllPlatformPackagingSettings->GetBuildTargetInfoForPlatform(PlatformNameIni, bIsProjectBuildTarget);
 #endif
-			GetBuildTargetInfoForPlatform(PlatformNameIni, bIsProjectBuildTarget);
 
 		// Only add the -Target=... argument for code projects. Content projects will return
 		// UnrealGame/UnrealClient/UnrealServer here, but may need a temporary target generated to enable/disable

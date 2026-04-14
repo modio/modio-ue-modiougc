@@ -490,6 +490,8 @@ void UUGCSubsystem::AddUGCFromPath(const FString& Path)
 {
 #if UGC_SUPPORTED_PLATFORM
 	UE_LOG(LogModioUGC, Log, TEXT("Searching for UGC plugins at '%s'"), *Path);
+	PrepareFilesystemToUsePathFn(Path);
+
 	TArray<FString> PluginFilePaths;
 	FPlatformFileManager::Get().GetPlatformFile().FindFilesRecursively(PluginFilePaths, *Path, TEXT(".uplugin"));
 	bool bAddSearchPath = false;
@@ -851,4 +853,9 @@ void UUGCSubsystem::AddModEnabledStateChangeHandler(const FModEnabledStateChange
 void UUGCSubsystem::SetFilePathSanitizationFn(TFunction<FString(FString&)> InFunc)
 {
 	FilePathSanitizationFn = MoveTemp(InFunc);
+}
+
+void UUGCSubsystem::SetPrepareFilesystemToUsePathFn(TFunction<bool(const FString&)> InFunc)
+{
+	PrepareFilesystemToUsePathFn = MoveTemp(InFunc);
 }

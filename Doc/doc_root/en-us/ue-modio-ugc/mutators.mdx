@@ -1,0 +1,121 @@
+---
+id: mutators
+title: Mutators
+slug: /unreal/modio-action-rpg/mutators
+custom_edit_url: https://github.com/modio/modio-ue4-internal/tree/main/Doc/doc_root/en-us/modio-action-rpg/mutators.mdx
+---
+
+:::caution
+This feature is currently released in an experimental state. Functionality is subject to change. Please use with caution in production environments.
+:::
+
+# Mutators
+Mutators provide a way for developers to create a framework that exposes mutatable events to modders as well as offering limited support for asset replacement. This creates a very low friction environment for content creators - which allows both experienced modders to create content easier, and lowers the technical skills required for new creators to start creating content.
+
+Working with Mutators is simple. As a developer you create specific points where modders can interact with your game. There are two types interactions you can define: Asset Replacements and Mutator Events. Asset Replacements allow you to give modders support to swap out specific assets while Mutator Events give modders a way to modify or inject new behaviour.
+
+Once these points have been defined modders can easily create a new mutator and implement any behaviours they want using the framework you have provided them. Because the events have default implementations modders only need to implement the events they specifically care about, which can serve to lower the barrier to entry to modding. Having a defined framework can also serve as inspiration for modders as they can easily see the types of events they have access to which might spark creativity.
+
+# Registering Mutators
+You will need to provide players with some way of picking which mutators they want applied at any given time. Once they have decided you will need to register each of them with the Mutator Subsystem using `RegisterMutator()`. This function takes the type of mutator you want to register, instantiates it, and returns a handle to it for future purposes.
+
+An advantage with Mutators is they can easily be combined to create more complex behaviour. To support this each Mutator is registered with a priority which determines the order in which they are evaluated. If two or more mutators are registered with the same priority then they will be processed in the order in which they were registered.
+
+# Asset Replacement
+Mutators give you a simple way to allow modders to easily swap certain assets that you have made replaceable with assets of their own. These can be things as simple as skins for items or player models or more complicated assets such as data assets that describe what enemies can spawn in a given area.
+
+## Create Asset Replacement Tag
+For each asset you want a modder to be able to replace, create a new Gameplay Tag to be used to identify the asset at the point of replacement. As a convention we use `Mutator.Asset` as the tag root but that is not a requirement, which means this should be compatible with any existing asset tagging structures. Likewise there is no requirement on the Tag Source. We use MutatorTags.ini for ours but feel free to use your own.
+
+## Create Replacement point
+Once you have an Asset Replacement Tag for an asset you now need to handle the replacement. At the point that the asset is being initialised, replace the reference to the asset with a call to `UMutatorSubsystem:GetAsset()`. This function will check any active mutators to see if they want to replace this asset and return the replacement asset. If no Mutator has a replacement for that asset, the function will return the default parameter. Mutators are checked for asset replacements in priority order and once a replacement is found it will not check any other mutators.
+
+Example:
+```cpp
+//Old
+SetStaticMesh(WeaponMesh);
+
+//New
+SetStaticMesh(MutatorSubsystem->GetAsset(FGameplayTag::RequestGameplayTag("Mutator.Asset.Weapon", WeaponMesh)));
+```
+
+modders will now be able to add entries to the `AssetOverrides` property of the mutators they create.
+
+# Mutating Behaviours
+The other way Mutators can enable modders is through Mutator Events. Creating a new Mutator Event allows modders to add, change, or react to certain things happening in your game, for example the player taking damage or an enemy spawning. Many times you may want to allow these events to change the result of what is happening (the amount of damage being dealt or the enemy being spawned). Note that unlike Asset Replacement, each registered mutator will get an opportunity to mutate each event.
+
+New mutator events are created by using a combination of custom macros (found in ModioUGC\Public\Mutators\MutatorUtils.h). These macros help cut down on boilerplate code and let you focus on creating quickly and efficiently.
+
+There are three places you need to add code to create a new event, outlined below. In each of these places the mutator code needs to be wrapped in `MUTATOR_EVENT_START` and `MUTATOR_EVENT_END` macros.
+
+Example:
+```cpp
+MUTATOR_EVENT_START
+...code...
+MUTATOR_EVENT_END
+```
+
+## Define New Events
+New events are defined in your `UMutatorSubsystem` subclass header using the `DEFINE_MUTATOR()` or `DEFINE_MUTATOR_RETURN()` macros. These macros take in the name of the event followed by an optional list of type + name pairs. This list will get converted into struct that is used to pass information in to the event. The only difference between the two macros is the `_RETURN` variant creates a function that returns data to be passed along the chain of events, allowing it to mutate the data of the event.
+
+Example:
+```cpp
+MUTATOR_EVENTS_START
+DEFINE_MUTATOR(EnemyWaveEnded, int32, WaveNumber)
+DEFINE_MUTATOR_RETURN(ModifyDamage, class AActor*, Target, class AActor*, Source, float, Amount)
+MUTATOR_EVENTS_END
+```
+
+will generate the equivalent code
+```cpp
+struct EnemyWaveEnded_Params { int32 WaveNumber; }
+struct ModifyDamage_Params { class AActor* Target; class AActor* Source; float Amount; }
+
+void EnemyWaveEnded(FEnemyWaveEnded_Params Params);
+ModifyDamage_Params ModifyDamage(FModifyDamage_Params Params);
+```
+
+The structs and functions are accessible in both Blueprint and Native code.
+
+## Implementing New Events
+Once you have defined a mutator event you will need to create a corresponding implemenation in the `UMutatorSubsystem` subclass implementation file using `IMPLEMENT_MUTATOR_EVENT()` or `IMPLEMENT_MUTATOR_EVENT_RETURN()`, whichever corresponds to the macro used to define it. These macros just take the name of the event and will generate code that calls the function on each registered mutator.
+
+Example:
+```cpp
+MUTATOR_EVENTS_START
+IMPLEMENT_MUTATOR_EVENT(EnemyWaveEnded)
+IMPLEMENT_MUTATOR_EVENT_RETURN(ModifyDamage)
+MUTATOR_EVENTS_END
+```
+
+Note that you don't have to respecify the paramters for the event, just supply the name.
+
+## Declaring The Events For The Mutator
+The last part of creating a new event is to declare it in your `UMutator` subclass header using either `DECLARE_MUTATOR_EVENT_NATIVE()` or `DECLARE_MUTATOR_EVENT_BLUEPRINT()`. The first will create a function that can only be overriden in native code and probably has less applications, though provided for completeness. The second will create a function that can be overridden in Blueprint and C++ (essentially marked as a BlueprintNativeEvent). Both macros take the name of the event as their only argument.
+
+Example:
+```cpp
+MUTATOR_EVENTS_START
+DECLARE_MUTATOR_EVENT_NATIVE(EnemyWaveEnded)
+DECLARE_MUTATOR_EVENT_BLUEPRINT(ModifyDamage)
+MUTATOR_EVENTS_END
+```
+
+## Calling Your New Event
+Now you have fully implemented a new mutator event the final part is to call it in your game code.
+
+Example:
+```cpp
+FModifyDamage_Params DamageParams{TargetActor, SourceActor, Damage * AttackPower / DefensePower};
+auto MutatorSubsystem = UGameplayStatics::GetGameInstance(TargetActor)->GetSubsystem<UMutatorSubsystem>();
+FModifyDamage_Params DamageEvent = MutatorSubsystem->ModifyDamage(DamageParams);
+
+DealDamageTo(DamageEvent.Target, DamageEvent.Source, DamageEvent.Amount);
+```
+
+In this example we see the benefit or the `_RETURN` event as the mutators have an opportunity to change not only the amount of damage being dealt but also potentially who is dealing and/or receiving it.
+
+# Known Limitations
+- Parameters for the events cannot use qualifiers (ie `const`)
+- Parameters for the events don't support default values
+- Parameters for the events that are templated types with more than one tempalte parameter (ie `TMap`) don't parse correctly

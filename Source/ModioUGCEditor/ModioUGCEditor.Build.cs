@@ -24,7 +24,9 @@ public class ModioUGCEditor : ModuleRules
                 "Core",
                 "PluginBrowser",
                 "Modio",
-                "ModioEditor"
+                "ModioEditor",
+                "ModioUGC",
+                "GameplayTags"
             }
         );
 
