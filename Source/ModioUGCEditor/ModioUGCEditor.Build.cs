@@ -41,6 +41,7 @@ public class ModioUGCEditor : ModuleRules
                 "CoreUObject",
                 "Engine",
                 "Json",
+                "JsonUtilities",
                 "DeveloperToolSettings",
                 "PakFile",
                 "EditorWidgets",
@@ -54,6 +55,9 @@ public class ModioUGCEditor : ModuleRules
                 "Slate",
                 "SlateCore",
                 "SlateRHIRenderer",
+                "FileUtilities",
+                "EditorSubsystem",
+                "ToolMenus",
             }
         );
     }

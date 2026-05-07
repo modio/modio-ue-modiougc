@@ -21,6 +21,7 @@
 #include "ModioUGCSettings.h"
 #include "UGC/Types/UGCPackage.h"
 #include "UGC/UGCSubsystem.h"
+#include "UGCTemplates/Widgets/SModioEditorUGCTemplateWidget.h"
 
 DEFINE_LOG_CATEGORY(ModioUGCEditor);
 
@@ -53,6 +54,11 @@ void FModioUGCEditorModule::StartupModule()
 
 	UModioEditorUtilityFunctions::AddGettingStartedWidgetEntries(
 		GetMutableDefault<UModioUGCEditorSettings>()->GettingStartedEntries);
+
+	UToolMenus::RegisterStartupCallback(
+		FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FModioUGCEditorModule::RegisterMenus));
+
+	FModioEditorUGCTemplateWidgetCommands::Register();
 }
 
 void FModioUGCEditorModule::ShutdownModule()
@@ -145,6 +151,69 @@ void FModioUGCEditorModule::TogglePakFileOverride(bool bEnable)
 		}
 		PlatformPakFileOverride.Reset();
 	}
+}
+
+void FModioUGCEditorModule::RegisterMenus()
+{
+	// Owner will be used for cleanup in call to UToolMenus::UnregisterOwner
+	FToolMenuOwnerScoped OwnerScoped(this);
+
+	{
+		UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Window");
+		{
+			FToolMenuSection& Section = Menu->FindOrAddSection("WindowLayout");
+			//Section.AddMenuEntryWithCommandList(FModioEditorWindowCommands::Get().OpenPluginWindow, PluginCommands);
+		}
+	}
+	{
+#if ENGINE_MAJOR_VERSION >= 5
+		FName ToolBarName = "LevelEditor.LevelEditorToolBar.PlayToolBar";
+		FName ExtensionPoint = "Play";
+#else
+		FName ToolBarName = "LevelEditor.LevelEditorToolBar";
+		FName ExtensionPoint = "Settings";
+#endif
+		UToolMenu* ToolbarMenu = UToolMenus::Get()->ExtendMenu(ToolBarName);
+		{
+			FToolMenuSection& Section = ToolbarMenu->FindOrAddSection(ExtensionPoint);
+			{
+				FToolMenuEntry& EntryButton = Section.AddEntry(
+					FToolMenuEntry::InitToolBarButton(
+						"UGCTemplatesMenuButton",
+						FUIAction(FExecuteAction::CreateRaw(this, &FModioUGCEditorModule::OnUGCTemplateMenuButtonClicked)),
+						FText::FromString("Templates"), 
+						FText::FromString("UGC Template Menu")
+						)
+					);
+			}
+		}
+	}
+}
+
+void FModioUGCEditorModule::OnUGCTemplateMenuButtonClicked() 
+{
+	if (!UGCTemplateWindow.IsValid())
+	{
+		UGCTemplateWindow = SNew(SWindow)
+					.Title(FText::FromString("UGC Templates"))
+					.SupportsMaximize(false)
+					.SupportsMinimize(false)
+					.HasCloseButton(true)
+					.ClientSize(FVector2D(1000.f, 720.f))
+					.SizingRule(ESizingRule::FixedSize)
+					.AutoCenter(EAutoCenter::PreferredWorkArea)
+					.ScreenPosition(FVector2D(0, 0))
+					.LayoutBorder(FMargin(3.f))[SAssignNew(TemplateWidget, SModioEditorUGCTemplateWidget)];
+		UGCTemplateWindow->SetOnWindowClosed(
+			FOnWindowClosed::CreateLambda([this](const TSharedRef<SWindow>& WindowRef) {
+			TemplateWidget->TearDown();
+			TemplateWidget = nullptr;
+			UGCTemplateWindow = nullptr;
+		}));
+		FSlateApplication::Get().AddWindow(UGCTemplateWindow.ToSharedRef(), false);
+	}
+	UGCTemplateWindow->BringToFront(true);
+	UGCTemplateWindow->ShowWindow();
 }
 
 #undef LOCTEXT_NAMESPACE

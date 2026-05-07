@@ -1,0 +1,67 @@
+---
+id: ugc-templates
+title: UGC Templates
+slug: /unreal/modio-action-rpg/ugc-templates
+custom_edit_url: https://github.com/modio/modio-ue4-internal/tree/main/Doc/doc_root/en-us/modio-action-rpg/ugc-templates.mdx
+---
+
+:::caution
+This feature is currently released in an experimental state. Functionality is subject to change. Please use with caution in production environments.
+:::
+
+# UGC Templates
+Currently creating new mods leaves the Modder with a blank UGC plugin. UGC Templates instead allow a Developer to define items that Modders can add, letting them immediately get started. This doesn't preclude Modders from adding content themselves manually but modding is a great way for people to dip their toes into game development and this would help the less experienced people hit the ground running by providing them with more than just a blank slate.
+
+# Template Types
+Currently we support two types of templates: Mod Templates and Item Templates.
+
+## Mod Templates
+Mod Templates are used as the base of a new piece of UGC and will create the necessary scaffolding for you.
+
+## Item Templates
+Item Templates are templates for items that can be added to an existing Mod. These can help creators make bigger Mods with a larger variety of content with less hassle.
+
+# File Name Substitution
+We support the ability to provide for template creators to supply partial file name substitutions. This allows Modders to use the same template multiple times without needing to worry about clashing names. As a file is being extracted from the template any substitutions will be applied to the name as it is written to it's new location. Values for these parameters are provided by the Modder when they instantiate the template.
+
+Example:
+
+A Modder wants to create a a new weapon for their mod. They select the weapon item template and provide the value ```ChickenBlade``` for the parameter ```___WEAPONNAME___```. When the template extracts the file ```___WEAPONNAME____Weapon.uasset```, the substitutions are applied and the files is written as ```ChickenBlade_Weapon.uasset```.
+
+These substitutions are also applied to any directory names too. If in the example above the file was being written to ```\Content\___WEAPONNAME___\``` then that path would also have undergone substitution and become ```\Content\ChickenBlade\```.
+
+While most substitutions are defined by the template creator there are a few implicit parameters that are always available:
+
+| Name                  | Value                 |
+| ----                  | -----                 |
+| ```___MODNAME___```   | The name of the mod   |
+| ```___UGCNAME___```   | Currently synonymous with ```___MODNAME___```   | 
+
+# What is in a Template?
+Each template is a zip file that contains two parts: the files to copy and the template descriptor.
+
+When a user creates content with a template the files contained in the zip file are copied in to the Mod  directory in the same directory structure. This structure should mirror the expected folder structure for Unreal plugins and begin with ```\Content\```.
+
+The template descriptor is a ```.template``` file with the same name as the template. See below for more information.
+
+# Template Descriptor
+The Template Descriptor is a json file that contains information about the template. The file can contain the following properties:
+
+| Property      | Type          | Version | Required   | Description |
+| --------      | ----          | ------- | --------   | ----------- |
+| Version       | int           | 1       | Yes        | The version number for this template |
+| Type          | int           | 1       | Yes        | Indicates which type of template this is (0 = Item, 1 = Mod). This maps to an enum in Unreal |
+| Parameters    | String Array  | 1       | Optional   | Contains a list of strings used as substitution parameters for the template |
+
+# Export
+To make things easier we have supplied a template export tool to help create custom templates.
+
+1. Create a UGC Mod plugin, either manually or by using our ```Blank``` UGC template.
+2. Add the content to the plugin that you want to be part of the template
+3. Optional: Make sure your file names contain any substrings you want to use as parameters for file name substitutions
+4. Open the UGC Template tool and select the Export option
+5. Select the plugin you want to turn into a template and name it
+6. Fill out the properties for the template descriptor
+7. Export your template
+
+The exporter will create the zip file, add all the relevant files to it, and add it to the ```\ModTemplates\``` directory of your project ready to use.

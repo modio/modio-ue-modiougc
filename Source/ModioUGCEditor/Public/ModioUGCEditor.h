@@ -55,4 +55,10 @@ public:
 	bool bEngineExitRequested = false;
 
 	//~ End Pak File Override
+
+	void RegisterMenus();
+	void OnUGCTemplateMenuButtonClicked();
+
+	TSharedPtr<class SWindow> UGCTemplateWindow = nullptr;
+	TSharedPtr<class SModioEditorUGCTemplateWidget> TemplateWidget = nullptr;
 };

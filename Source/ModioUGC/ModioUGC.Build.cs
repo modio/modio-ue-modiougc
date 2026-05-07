@@ -22,8 +22,7 @@ public class ModioUGC : ModuleRules
             {
                 "Core",
                 "Modio",
-                "GameplayTags",
-                "StructUtils"
+                "GameplayTags"
             }
         );
 
