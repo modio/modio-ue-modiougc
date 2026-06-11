@@ -38,6 +38,28 @@ void UUGCTemplateSubsystem::Deinitialize()
 	}
 }
 
+FString UUGCTemplateSubsystem::FormatLogMessageInternal(const TCHAR* Format, ...)
+{
+	int32 BufferSize = 128;
+	TCHAR* Buffer = nullptr;
+	int32 Result = -1;
+
+	while (Result == -1)
+	{
+		Buffer = (TCHAR*) FMemory::Realloc(Buffer, BufferSize * sizeof(TCHAR));
+		GET_VARARGS_RESULT(Buffer, BufferSize, BufferSize - 1, Format, Format, Result);
+		if (Result == -1)
+		{
+			BufferSize *= 2;
+		}
+	}
+
+	Buffer[Result] = TEXT('\0');
+	FString FormattedMessage(Buffer);
+	FMemory::Free(Buffer);
+	return FormattedMessage;
+}
+
 void UUGCTemplateSubsystem::DiscoverTemplates(TArray<FUGCTemplateInfo>& Templates)
 {
 	auto TemplatePath = GetTemplateDirectory();
@@ -94,6 +116,14 @@ bool UUGCTemplateSubsystem::CreateUGCFromTemplate(FString NewModName, const FUGC
 	LogInfo("Begin CreateUGCFromTemplate: %s", *(TemplateInfo.Name));
 	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 	{
+		FString NameFailReason;
+		if (!IsValidModName(NewModName, NameFailReason))
+		{
+			LogError("%s is an invalid name. %s", *(NewModName), *(NameFailReason));
+			Transaction->Cancel();
+			return false;
+		}
+
 		FZipArchiveReader Reader(PlatformFile.OpenRead(*TemplateInfo.Path));
 
 		if (!Reader.IsValid())
@@ -378,7 +408,8 @@ bool UUGCTemplateSubsystem::ExtractFilesFromTemplate(class FZipArchiveReader& Re
 		FString SubstitutedDestination = ResolveSubstitutions(FilePath, Substitutions);
 		FString DestinationFilename = FPaths::Combine(SubstitutedDestination, FPaths::GetCleanFilename(EmbeddedFileName));
 	
-		if (FPaths::GetExtension(DestinationFilename).Equals("uasset")) 
+		FString FileExtension = FPaths::GetExtension(DestinationFilename);
+		if (FileExtension.Equals("uasset") || FileExtension.Equals("umap")) 
 		{
 			AddFileForRename(DestinationFilename);
 		}
@@ -494,6 +525,18 @@ void UUGCTemplateSubsystem::VerifyTemplates(TArray<FUGCTemplateInfo>& Templates,
 			}
 		}
 	}
+}
+
+bool UUGCTemplateSubsystem::IsValidModName(FString ModName, FString& FailReason)
+{
+	FText IllegalPluginNameReason;
+	if (!FPluginUtils::IsValidPluginName(ModName, &IllegalPluginNameReason))
+	{
+		FailReason = IllegalPluginNameReason.ToString();
+		return false;
+	}
+
+	return true;
 }
 
 void UUGCTemplateSubsystem::GatherSubsitutionsFor(const FUGCTemplateInfo& TemplateInfo,

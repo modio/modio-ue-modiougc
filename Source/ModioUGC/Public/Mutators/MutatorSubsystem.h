@@ -13,7 +13,11 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "GameplayTagContainer.h"
+#include "InstancedStruct.h"
 #include "MutatorUtils.h"
+
+class AController;
+
 #include "MutatorEvents.generated.inl"
 #include "MutatorSubsystem.generated.h"
 
@@ -61,9 +65,9 @@ public:
 private:
 	
 	int32 Priority = -1;
-	class UMutator* Instance = nullptr;
+	class UUGCMutator* Instance = nullptr;
 
-	friend class UMutatorSubsystem;
+	friend class UUGCMutatorSubsystem;
 };
 
 /**
@@ -76,29 +80,29 @@ struct FMutatorPriorityBucket
 
 public:
 	
-	int32 Add(class UMutator* Mutator)
+	int32 Add(class UUGCMutator* Mutator)
 	{
 		return Contents.Add(Mutator);
 	}
 
-	int32 Remove(class UMutator* Mutator)
+	int32 Remove(class UUGCMutator* Mutator)
 	{
 		return Contents.Remove(Mutator);
 	}
 
-private:
+//private:
 	
 	UPROPERTY()
-	TArray<class UMutator*> Contents;
+	TArray<class UUGCMutator*> Contents;
 
-	friend class UMutatorSubsystem;
+	friend class UUGCMutatorSubsystem;
 };
 
 /**
  * 
  */
 UCLASS(BlueprintType)
-class MODIOUGC_API UMutatorSubsystem : public UGameInstanceSubsystem
+class MODIOUGC_API UUGCMutatorSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
 
@@ -113,7 +117,7 @@ public:
 	 * @param OutHandle A handle to the create mutator
 	 */
 	UFUNCTION(BlueprintCallable, Category = "mod.io|Mutators")
-	bool RegisterMutator(TSubclassOf<class UMutator> Type, int32 Priority, FMutatorHandle& OutHandle);
+	bool RegisterMutator(TSubclassOf<class UUGCMutator> Type, int32 Priority, FMutatorHandle& OutHandle);
 
 	/**
 	 * Creates an instance of a mutator and adds it to the list of active mutators
@@ -139,37 +143,15 @@ public:
 	 * @return Was the query successful
 	 */
 	UFUNCTION(BlueprintCallable, Category = "mod.io|Mutators")
-	bool GetMutatorClassList(TArray<TSubclassOf<UMutator>>& OutMutators, bool bUseCache = true);
+	bool GetMutatorClassList(TArray<TSubclassOf<UUGCMutator>>& OutMutators, bool bUseCache = true);
 
 public:
 	
 	
 	
 	MUTATOR_EVENTS_START
-	/**
-	 * Trigger EnemyWaveEnded for registered mutators
-	 * @param WaveNumber Which number wave just ended
-	 */
-	DEFINE_MUTATOR(EnemyWaveEnded, int32, WaveNumber)
 	DEFINE_MUTATOR(PostPlayerInit, class AController*, Controller)
 	DEFINE_MUTATOR(PostPawnSpawned, class APawn*, Pawn)
-
-	/**
-	 * Trigger ModifyDamage for registered mutators
-	 * @param Target The Actor about to be damaged
-	 * @param Source The Actor responsible for dealing the damage
-	 * @param Amount The amount of damage about to be dealt
-	 * @return The amount of points after being modified by mutators
-	 */
-	DEFINE_MUTATOR_RETURN(ModifyDamage, class AActor*, Target, class AActor*, Source, float, Amount)
-
-	/**
-	 * Trigger ScorePoints for registered mutators
-	 * @param Scorer The controller that is scoring points
-	 * @param Amount The amount of points about to be scored
-	 * @return The amount of points after being modified by mutators
-	 */
-	DEFINE_MUTATOR_RETURN(ScorePoints, class AController*, Scorer, int32, Amount)
 	MUTATOR_EVENTS_END
 
 public:
@@ -179,7 +161,7 @@ public:
 	 * @param Type the type of mutator to check for
 	 */
 	UFUNCTION(BlueprintPure, Category = "mod.io|Mutators")
-	bool IsRegistered(TSubclassOf<UMutator> Type);
+	bool IsRegistered(TSubclassOf<UUGCMutator> Type);
 
 protected:
 
@@ -189,7 +171,7 @@ protected:
 private:
 
 	UPROPERTY()
-	TArray<TSubclassOf<UMutator>> MutatorCache;
+	TArray<TSubclassOf<UUGCMutator>> MutatorCache;
 
 	bool bHasMutatorListCache = false;
 };

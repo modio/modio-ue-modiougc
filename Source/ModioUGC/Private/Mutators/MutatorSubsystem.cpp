@@ -21,14 +21,14 @@
 #endif
 #include "UObject/UObjectIterator.h"
 
-void UMutatorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+void UUGCMutatorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
 	//TODO: Set up system delegates for gamemode and similar actors
 }
 
-bool UMutatorSubsystem::RegisterMutator(TSubclassOf<class UMutator> Type, int32 Priority, FMutatorHandle& OutHandle)
+bool UUGCMutatorSubsystem::RegisterMutator(TSubclassOf<class UUGCMutator> Type, int32 Priority, FMutatorHandle& OutHandle)
 {
 	if (!Type->IsValidLowLevelFast())
 	{
@@ -36,7 +36,7 @@ bool UMutatorSubsystem::RegisterMutator(TSubclassOf<class UMutator> Type, int32 
 		return false;
 	}
 
-	UMutator* NewMutator = NewObject<UMutator>(this, Type);
+	UUGCMutator* NewMutator = NewObject<UUGCMutator>(this, Type);
 	if (NewMutator == nullptr)
 	{
 		UE_LOG(LogModioUGC, Warning, TEXT("Unable to initialise mutator [%s]"), *Type->GetName());
@@ -57,7 +57,7 @@ bool UMutatorSubsystem::RegisterMutator(TSubclassOf<class UMutator> Type, int32 
 	return true;
 }
 
-void UMutatorSubsystem::DeregisterMutator(FMutatorHandle& Handle)
+void UUGCMutatorSubsystem::DeregisterMutator(FMutatorHandle& Handle)
 {
 	if (!Handle.IsValid())
 	{
@@ -76,7 +76,7 @@ void UMutatorSubsystem::DeregisterMutator(FMutatorHandle& Handle)
 	MutatorRegistry.KeySort([](int32 A, int32 B) { return A > B; });
 }
 
-UObject* UMutatorSubsystem::GetAsset(FGameplayTag AssetTag, UObject* DefaultValue) const
+UObject* UUGCMutatorSubsystem::GetAsset(FGameplayTag AssetTag, UObject* DefaultValue) const
 {
 	//TODO: might be possible to pre-compute this when adding/removing mutators
 	for (auto it = MutatorRegistry.CreateConstIterator(); it; ++it)
@@ -95,7 +95,7 @@ UObject* UMutatorSubsystem::GetAsset(FGameplayTag AssetTag, UObject* DefaultValu
 }
 
 
-bool UMutatorSubsystem::GetMutatorClassList(TArray<TSubclassOf<UMutator>>& OutMutators, bool bUseCache /*= true*/)
+bool UUGCMutatorSubsystem::GetMutatorClassList(TArray<TSubclassOf<UUGCMutator>>& OutMutators, bool bUseCache /*= true*/)
 {
 	//TODO: Replace this with a more appropriate method; scan for Primary Assets etc
 	if (!bUseCache || !bHasMutatorListCache)
@@ -127,7 +127,7 @@ bool UMutatorSubsystem::GetMutatorClassList(TArray<TSubclassOf<UMutator>>& OutMu
 #endif
 
 			// Check this class is a subclass of Base
-			if (!Class->IsChildOf(UMutator::StaticClass()))
+			if (!Class->IsChildOf(UUGCMutator::StaticClass()))
 			{
 				continue;
 			}
@@ -139,11 +139,12 @@ bool UMutatorSubsystem::GetMutatorClassList(TArray<TSubclassOf<UMutator>>& OutMu
 		FARFilter ARFilter;
 		TArray<FAssetData> AssetList;
 #if UE_VERSION_NEWER_THAN(5, 1, 0)
-		ARFilter.ClassPaths.Add(UMutator::StaticClass()->GetClassPathName());
+		ARFilter.ClassPaths.Add(UUGCMutator::StaticClass()->GetClassPathName());
 #else
-		ARFilter.ClassNames.Add(UMutator::StaticClass()->GetFName());
+		ARFilter.ClassNames.Add(UUGCMutator::StaticClass()->GetFName());
 #endif
 		ARFilter.bIncludeOnlyOnDiskAssets = true;
+		ARFilter.bRecursiveClasses = true;
 		
 		FAssetRegistryModule& AssetRegistryModule =	FModuleManager::LoadModuleChecked<FAssetRegistryModule>(FName("AssetRegistry"));
 		IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
@@ -163,7 +164,7 @@ bool UMutatorSubsystem::GetMutatorClassList(TArray<TSubclassOf<UMutator>>& OutMu
 		// Search for all blueprints and then check BlueprintParentClassPaths in the results
 		ARFilter.ClassPaths.Reset(1);
 		ARFilter.ClassPaths.Add(FTopLevelAssetPath(FName(TEXT("/Script/Engine")), FName(TEXT("BlueprintCore"))));
-		ARFilter.bRecursiveClasses = true;
+		//ARFilter.bRecursiveClasses = true;
 
 		auto FilterLambda = [&AssetList, &BlueprintParentClassPaths](const FAssetData& AssetData) {
 			// Verify blueprint class
@@ -204,14 +205,11 @@ bool UMutatorSubsystem::GetMutatorClassList(TArray<TSubclassOf<UMutator>>& OutMu
 }
 
 MUTATOR_EVENTS_START
-IMPLEMENT_MUTATOR_EVENT(EnemyWaveEnded)
 IMPLEMENT_MUTATOR_EVENT(PostPlayerInit)
 IMPLEMENT_MUTATOR_EVENT(PostPawnSpawned)
-IMPLEMENT_MUTATOR_EVENT_RETURN(ModifyDamage)
-IMPLEMENT_MUTATOR_EVENT_RETURN(ScorePoints)
 MUTATOR_EVENTS_END
 
-bool UMutatorSubsystem::IsRegistered(TSubclassOf<UMutator> Type) 
+bool UUGCMutatorSubsystem::IsRegistered(TSubclassOf<UUGCMutator> Type) 
 {
 	for (auto B : MutatorRegistry)
 	{

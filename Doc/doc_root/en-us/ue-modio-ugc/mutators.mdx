@@ -54,6 +54,19 @@ MUTATOR_EVENT_START
 ...code...
 MUTATOR_EVENT_END
 ```
+## Set up
+We recommend that you create subclasses of `UMutator` and `UMutatorSubsystem` in your project. For the system to pick them up you will also need to add the following to your projects `*.Build.cs` file:
+
+```cs
+PublicDefinitions.Add("MUTATOR_CLASS=<Your Mutator Class Name>");
+PublicDefinitions.Add("MUTATOR_SUBSYSTEM_CLASS=<Your Mutator Subsystem Class Name>");
+```
+
+Example:
+```cs
+PublicDefinitions.Add("MUTATOR_CLASS=URPGMutator");
+PublicDefinitions.Add("MUTATOR_SUBSYSTEM_CLASS=URPGMutatorSubsystem");
+``` 
 
 ## Define New Events
 New events are defined in your `UMutatorSubsystem` subclass header using the `DEFINE_MUTATOR()` or `DEFINE_MUTATOR_RETURN()` macros. These macros take in the name of the event followed by an optional list of type + name pairs. This list will get converted into struct that is used to pass information in to the event. The only difference between the two macros is the `_RETURN` variant creates a function that returns data to be passed along the chain of events, allowing it to mutate the data of the event.
@@ -76,6 +89,13 @@ ModifyDamage_Params ModifyDamage(FModifyDamage_Params Params);
 ```
 
 The structs and functions are accessible in both Blueprint and Native code.
+
+It is also possible to add default values for the parameters.
+
+Example:
+```cpp
+DEFINE_MUTATOR(EnemyWaveEnded, int32, WaveNumber = 1)
+```
 
 ## Implementing New Events
 Once you have defined a mutator event you will need to create a corresponding implemenation in the `UMutatorSubsystem` subclass implementation file using `IMPLEMENT_MUTATOR_EVENT()` or `IMPLEMENT_MUTATOR_EVENT_RETURN()`, whichever corresponds to the macro used to define it. These macros just take the name of the event and will generate code that calls the function on each registered mutator.
@@ -114,8 +134,3 @@ DealDamageTo(DamageEvent.Target, DamageEvent.Source, DamageEvent.Amount);
 ```
 
 In this example we see the benefit or the `_RETURN` event as the mutators have an opportunity to change not only the amount of damage being dealt but also potentially who is dealing and/or receiving it.
-
-# Known Limitations
-- Parameters for the events cannot use qualifiers (ie `const`)
-- Parameters for the events don't support default values
-- Parameters for the events that are templated types with more than one tempalte parameter (ie `TMap`) don't parse correctly

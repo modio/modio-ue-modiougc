@@ -12,7 +12,7 @@
 #include "Mutators/Mutator.h"
 #include "Engine/World.h"
 
-void UMutator::Initialise() 
+void UUGCMutator::Initialise() 
 {
 	for (auto it = AssetOverrides.CreateIterator(); it; ++it)
 	{
@@ -22,7 +22,7 @@ void UMutator::Initialise()
 	Initialised();
 }
 
-class UWorld* UMutator::GetWorld() const
+class UWorld* UUGCMutator::GetWorld() const
 {
 	//TODO: this is not a good implementation; can cause conflicts with EditorWorld when in PIE
 	return GWorld;

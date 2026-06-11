@@ -14,6 +14,9 @@
 #include "UObject/NoExportTypes.h"
 #include "GameplayTagContainer.h"
 #include "MutatorUtils.h"
+
+class AController;
+
 #include "MutatorEvents.generated.inl"
 #include "Mutator.generated.h"
 
@@ -21,7 +24,7 @@
  * 
  */
 UCLASS(Abstract, Blueprintable)
-class MODIOUGC_API UMutator : public UObject
+class MODIOUGC_API UUGCMutator : public UObject
 {
 	GENERATED_BODY()
 
@@ -46,12 +49,6 @@ public:
 	
 	MUTATOR_EVENTS_START
 	/**
-	 * Gets called when an enemy wave has ended
-	 * @param WaveIndex The number wave that was just completed
-	 */
-	DECLARE_MUTATOR_EVENT_BLUEPRINT(EnemyWaveEnded)
-
-	/**
 	 * Called when a player is initialised
 	 * @param Controller The controller of the newly initialised player
 	 */
@@ -62,23 +59,6 @@ public:
 	 * @param Pawn The pawn that was just spawned
 	 */
 	DECLARE_MUTATOR_EVENT_BLUEPRINT(PostPawnSpawned)
-
-	/**
-	 * Gets called when damage is about to be dealt
-	 * @param Target The actor about to be dealt damage
-	 * @param Source The actor about to deal damage
-	 * @param Amount The amount of damage to be dealt. May have already been mutated
-	 * @return The mutated value of the amount of damage to dealt
-	 */
-	DECLARE_MUTATOR_EVENT_BLUEPRINT_RETURN(ModifyDamage)
-
-	/**
-	 * Gets called when points are about to be scored
-	 * @param Scorer The controller about to score points
-	 * @param Amount The amount of points to score. May have already been mutated
-	 * @return The mutated value of the number of points to score
-	 */
-	DECLARE_MUTATOR_EVENT_BLUEPRINT_RETURN(ScorePoints)
 	MUTATOR_EVENTS_END
 
 protected:
@@ -101,7 +81,7 @@ private:
 };
 
 template<typename T>
-T* UMutator::GetAsset(FGameplayTag AssetTag) const
+T* UUGCMutator::GetAsset(FGameplayTag AssetTag) const
 {
 	if (!AssetOverrides.Contains(AssetTag))
 	{

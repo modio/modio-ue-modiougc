@@ -1,5 +1,5 @@
 ﻿/*
- *  Copyright (C) 2025 mod.io Pty Ltd. <https://mod.io>
+ *  Copyright (C) 2025-2026 mod.io Pty Ltd. <https://mod.io>
  *
  *  This file is part of the mod.io ModioUGC Plugin.
  *
@@ -12,6 +12,8 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
+#include "ModioUGC.h"
+#include "Misc/EngineVersion.h"
 #include "ModioUGCSettings.generated.h"
 
 /**
@@ -48,6 +50,63 @@ public:
 	}
 #endif
 	//~ End UDeveloperSettings Interface
+
+	bool ShouldCheckEngineVersion() const
+	{
+		return bPerformUGCCheckVersionComponentMajor ||
+				bPerformUGCCheckVersionComponentMinor || 
+				bPerformUGCCheckVersionComponentPatch ||
+				bPerformUGCCheckVersionComponentChangelist ||
+				bPerformUGCCheckVersionVersionComponentBranch;
+	}
+
+	bool IsEngineVersionCompatible(const FEngineVersion& EngineVersion) const
+	{
+
+		FEngineVersion CurrentEngineVersion = FEngineVersion::Current();
+		UE_LOG(LogModioUGC, VeryVerbose, TEXT("Checking incoming version '%s' against current engine '%s'."),
+			   *CurrentEngineVersion.ToString(), *EngineVersion.ToString());
+
+		auto IsComponentEqual = [&EngineVersion, &CurrentEngineVersion](const FString& VersionComponentName, EVersionComponent VersionComponent) -> bool {
+			FString EngineComponent = CurrentEngineVersion.ToString(VersionComponent);
+			FString UGCComponent = EngineVersion.ToString(VersionComponent);
+			if (EngineComponent != UGCComponent)
+			{
+				UE_LOG(LogModioUGC, Warning, TEXT("%s component '%s' does not match expected '%s'."), *VersionComponentName, *UGCComponent, *EngineComponent);
+				return false;
+			}
+			return true;
+		};
+
+		EVersionComponent VersionComponent = EVersionComponent::Major;
+		if (bPerformUGCCheckVersionComponentMajor && !IsComponentEqual("Major", EVersionComponent::Major))
+		{
+			return false;
+		}
+
+		if (bPerformUGCCheckVersionComponentMinor && !IsComponentEqual("Minor",	 EVersionComponent::Minor))
+		{
+			return false;
+		}
+
+		if (bPerformUGCCheckVersionComponentPatch && !IsComponentEqual("Patch", EVersionComponent::Patch))
+		{
+			return false;
+		}
+
+		if (bPerformUGCCheckVersionComponentChangelist && !IsComponentEqual("Changelist", EVersionComponent::Changelist))
+		{
+			return false;
+		}
+
+		if (bPerformUGCCheckVersionVersionComponentBranch && !IsComponentEqual("Branch",	EVersionComponent::Branch))
+		{
+			UE_LOG(LogModioUGC, Warning, TEXT("Branch version component does not match."));
+			return false;
+		}
+
+		return true;
+	}
 
 	/**
 	 * @brief Whether we should automatically perform initialization of the underlying UGC provider (mod.io) or defer

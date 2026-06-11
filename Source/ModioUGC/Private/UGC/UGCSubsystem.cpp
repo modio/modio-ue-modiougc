@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2025 mod.io Pty Ltd. <https://mod.io>
+ *  Copyright (C) 2025-2026 mod.io Pty Ltd. <https://mod.io>
  *
  *  This file is part of the mod.io ModioUGC Plugin.
  *
@@ -39,6 +39,7 @@
 #include "UGC/Types/UGC_Metadata.h"
 #include "UGC/UGCProvider.h"
 #include "UGC/Utilities/PakFileHelpers.h"
+#include "ModioSubsystem.h"
 
 bool GetModMountPoint(TSharedPtr<IPlugin> Plugin, FString& RootPath, FString& ContentPath)
 {
@@ -123,8 +124,14 @@ void UUGCSubsystem::OnUGCProviderInitialized(bool bSuccess)
 				Pakfile.PakVisitPrunedFilenames(Iterator);
 			});
 
+		// In editor we'll only refresh UGC when starting PIE to prevent premature scanning during editor startup.
+		#if WITH_EDITOR
+		FEditorDelegates::PostPIEStarted.AddLambda([this](bool bIsSimulating) { RefreshUGC(); });
+		#else
 		UAssetManager::CallOrRegister_OnAssetManagerCreated(
 			FSimpleMulticastDelegate::FDelegate::CreateWeakLambda(this, [this]() { RefreshUGC(); }));
+		#endif
+
 	}
 	else
 	{
@@ -312,7 +319,7 @@ bool UUGCSubsystem::LoadUGC(TSharedPtr<IPlugin> LoadedPlugin, TOptional<FGeneric
 			GetModMountPoint(LoadedPlugin, RootPath, ContentPath);
 
 			FPackageName::RegisterMountPoint(RootPath, ContentPath);
-			FUGCPackage ModPackage {LoadedPlugin.ToSharedRef(), RawModID, FilePathSanitizationFn};
+			FUGCPackage ModPackage {LoadedPlugin.ToSharedRef(), RawModID};
 
 			// If we failed during the package object creation, unmount this piece of UGC straight away
 			if (ModPackage.MountState != EUGCPackageMountState::EUPMS_Mounted)
@@ -342,31 +349,20 @@ bool UUGCSubsystem::LoadUGC(TSharedPtr<IPlugin> LoadedPlugin, TOptional<FGeneric
 	return false;
 }
 
-bool UUGCSubsystem::UnloadUGC(FUGCPackage Package)
+bool UUGCSubsystem::UnloadUGC(FUGCPackage& Package)
 {
 #if UGC_SUPPORTED_PLATFORM
 	UE_LOG(LogModioUGC, Verbose, TEXT("Unloading UGC plugin %s"), *Package.FriendlyName);
 	bool _ = Package.UnloadAssets();
+
 	UnmountUGCPackage(Package, true);
 
 	RegisteredPackagesToPrimaryAssetTypesMap.Remove(Package);
 
-	FText OutFailReason;
-	if (IPluginManager::Get().RemoveFromPluginsList(Package.DescriptorPath, &OutFailReason))
-	{
-		UE_LOG(LogModioUGC, Log, TEXT("Removed UGC plugin '%s' from '%s'"), *Package.FriendlyName,
-			   *Package.DescriptorPath);
-	}
-	else
-	{
-		UE_LOG(LogModioUGC, Warning, TEXT("Failed to remove UGC plugin '%s' from '%s': %s"), *Package.FriendlyName,
-			   *Package.DescriptorPath, *OutFailReason.ToString());
-	}
-	IPluginManager::Get().RefreshPluginsList();
-
 	return true;
-#endif
+#else
 	return false;
+#endif
 }
 
 bool UUGCSubsystem::UnloadUGCByModID(FGenericModID ModID)
@@ -398,13 +394,14 @@ bool UUGCSubsystem::IsUGCCompatible(const FString& UPluginFilePath)
 		return true;
 	}
 
-	UE_LOG(LogModioUGC, Log, TEXT("Validating UGC plugin '%s'"), *UPluginFilePath);
+	FString FileName = FPaths::GetCleanFilename(UPluginFilePath);
+	UE_LOG(LogModioUGC, Log, TEXT("Validating uplugin '%s'"), *FileName);
 
 	// Read the uplugin file
 	FString UPluginContent;
 	if (!FFileHelper::LoadFileToString(UPluginContent, *UPluginFilePath))
 	{
-		UE_LOG(LogModioUGC, Warning, TEXT("Failed to read uplugin file for compatibility check: %s"), *UPluginFilePath);
+		UE_LOG(LogModioUGC, Error, TEXT("Failed to read uplugin file."));
 		return false;
 	}
 
@@ -413,72 +410,32 @@ bool UUGCSubsystem::IsUGCCompatible(const FString& UPluginFilePath)
 	TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(UPluginContent);
 	if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
 	{
-		UE_LOG(LogModioUGC, Warning, TEXT("Failed to parse uplugin JSON for compatibility check: %s"),
-			   *UPluginFilePath);
+		UE_LOG(LogModioUGC, Error, TEXT("Failed to parse uplugin JSON"));
 		return false;
 	}
 
-	// Check if engine version field exists
-	FString UGCEngineVersionString;
-	FEngineVersion UGCEngineVersion;
-	if (!JsonObject->TryGetStringField(TEXT("EngineVersion"), UGCEngineVersionString))
+	if (UGCSettings->ShouldCheckEngineVersion())
 	{
-		UE_LOG(LogModioUGC, Warning, TEXT("UGC plugin missing engine version info: %s"), *UPluginFilePath);
-		return false;
-	}
-	if (!FEngineVersion::Parse(UGCEngineVersionString, UGCEngineVersion))
-	{
-		UE_LOG(LogModioUGC, Warning, TEXT("Failed to parse engine version from uplugin: %s"), *UGCEngineVersionString);
-		return false;
-	}
+		// Check if engine version field exists
+		FString UGCEngineVersionString;
+		FEngineVersion UGCEngineVersion;
+		if (!JsonObject->TryGetStringField(TEXT("EngineVersion"), UGCEngineVersionString))
+		{
+			UE_LOG(LogModioUGC, Warning, TEXT("uplugin missing engine version."));
+			return false;
+		}
+		if (!FEngineVersion::Parse(UGCEngineVersionString, UGCEngineVersion))
+		{
+			UE_LOG(LogModioUGC, Warning, TEXT("Failed to parse engine version from value: '%s'"), *UGCEngineVersionString);
+			return false;
+		}
 
-	FEngineVersion CurrentEngineVersion = FEngineVersion::Current();
-	UE_LOG(LogModioUGC, VeryVerbose, TEXT("Checking UGC plugin %s Engine version. Project: %s, Plugin: %s."),
-		   *UPluginFilePath, *CurrentEngineVersion.ToString(), *UGCEngineVersionString);
-
-	FString EngineComponent = CurrentEngineVersion.ToString(EVersionComponent::Major);
-	FString UGCComponent = UGCEngineVersion.ToString(EVersionComponent::Major);
-	if (UGCSettings->bPerformUGCCheckVersionComponentMajor && (EngineComponent != UGCComponent))
-	{
-		UE_LOG(LogModioUGC, Warning, TEXT("Major Engine Version mismatch. Project: %s, Plugin: %s."), *EngineComponent,
-			   *UGCComponent);
-		return false;
-	}
-
-	EngineComponent = CurrentEngineVersion.ToString(EVersionComponent::Minor);
-	UGCComponent = UGCEngineVersion.ToString(EVersionComponent::Minor);
-	if (UGCSettings->bPerformUGCCheckVersionComponentMinor && (EngineComponent != UGCComponent))
-	{
-		UE_LOG(LogModioUGC, Warning, TEXT("Minor Engine Version mismatch. Project: %s, Plugin: %s."), *EngineComponent,
-			   *UGCComponent);
-		return false;
-	}
-
-	EngineComponent = CurrentEngineVersion.ToString(EVersionComponent::Patch);
-	UGCComponent = UGCEngineVersion.ToString(EVersionComponent::Patch);
-	if (UGCSettings->bPerformUGCCheckVersionComponentPatch && (EngineComponent != UGCComponent))
-	{
-		UE_LOG(LogModioUGC, Warning, TEXT("Patch Engine Version mismatch. Project: %s, Plugin: %s."), *EngineComponent,
-			   *UGCComponent);
-		return false;
-	}
-
-	EngineComponent = CurrentEngineVersion.ToString(EVersionComponent::Changelist);
-	UGCComponent = UGCEngineVersion.ToString(EVersionComponent::Changelist);
-	if (UGCSettings->bPerformUGCCheckVersionComponentChangelist && (EngineComponent != UGCComponent))
-	{
-		UE_LOG(LogModioUGC, Warning, TEXT("Changelist Engine Version mismatch. Project: %s, Plugin: %s."),
-			   *EngineComponent, *UGCComponent);
-		return false;
-	}
-
-	EngineComponent = CurrentEngineVersion.ToString(EVersionComponent::Branch);
-	UGCComponent = UGCEngineVersion.ToString(EVersionComponent::Branch);
-	if (UGCSettings->bPerformUGCCheckVersionVersionComponentBranch && (EngineComponent != UGCComponent))
-	{
-		UE_LOG(LogModioUGC, Warning, TEXT("Branch Engine Version mismatch. Project: %s, Plugin: %s."), *EngineComponent,
-			   *UGCComponent);
-		return false;
+		if (!UGCSettings->IsEngineVersionCompatible(UGCEngineVersion))
+		{
+			UE_LOG(LogModioUGC, Error, TEXT("UGC plugin '%s' is not compatible with the current engine version."),
+				   *FileName);
+			return false;
+		}	
 	}
 
 	return true;
@@ -490,7 +447,11 @@ void UUGCSubsystem::AddUGCFromPath(const FString& Path)
 {
 #if UGC_SUPPORTED_PLATFORM
 	UE_LOG(LogModioUGC, Log, TEXT("Searching for UGC plugins at '%s'"), *Path);
-	PrepareFilesystemToUsePathFn(Path);
+
+	if (UModioSubsystem* ModioSubsystem = GEngine->GetEngineSubsystem<UModioSubsystem>())
+	{
+		IModioPortalInterface::Execute_PrepareFilesystemToUsePath(ModioSubsystem->GetPortalInterfaceObject(), Path);
+	}
 
 	TArray<FString> PluginFilePaths;
 	FPlatformFileManager::Get().GetPlatformFile().FindFilesRecursively(PluginFilePaths, *Path, TEXT(".uplugin"));
@@ -508,6 +469,10 @@ void UUGCSubsystem::AddUGCFromPath(const FString& Path)
 		if (TSharedPtr<IPlugin> FoundPlugin = IPluginManager::Get().FindPlugin(PluginName))
 		{
 			FString FoundPluginDirectory = FPaths::GetPath(FoundPlugin->GetDescriptorFileName());
+			// Inconsistent separators can fail to pick up on the same plugin
+			FPaths::NormalizeDirectoryName(PluginDirectory);
+			FPaths::NormalizeDirectoryName(FoundPluginDirectory);
+
 			if (PluginDirectory == FoundPluginDirectory)
 			{
 				// Same plugin, skip
@@ -518,8 +483,9 @@ void UUGCSubsystem::AddUGCFromPath(const FString& Path)
 			bool bIsEnabled = FoundPlugin.Get()->IsEnabled();
 
 			UE_LOG(LogModioUGC, Error,
-				   TEXT("Searched for UGC plugin '%s' ('%s'). Another plugin of the same name was found: (Directory: %s, FriendlyName: %s, Enabled: %s). The existing pluging will be prioritised, and the new one will be ignored."),
-				   *PluginName, *PluginFilePath, *FoundPluginDirectory, *FriendlyName,
+				   TEXT("Searched for UGC plugin '%s' ('%s'). Another plugin of the same name was found: (Directory: %s, FriendlyName: %s, Enabled: %s). "
+						"The existing plugin will be prioritised, and the new one will be ignored."),
+				   *PluginName, *PluginDirectory, *FoundPluginDirectory, *FriendlyName,
 				   bIsEnabled ? TEXT("true") : TEXT("false"));
 			continue;
 		}
@@ -747,16 +713,6 @@ void UUGCSubsystem::UnmountUGCPackage_Internal(FUGCPackage& Package)
 		FPackageName::FOnContentPathDismountedEvent PathDismountedEvent = FPackageName::OnContentPathDismounted();
 		FPackageName::OnContentPathDismounted().Clear();
 	#endif
-
-		TArray<FString> FileNames;
-		FPlatformFileManager::Get().GetPlatformFile().FindFilesRecursively(
-			FileNames, *Package.AssociatedPlugin->GetBaseDir(), TEXT(".uplugin"));
-		for (const FString& PluginFileName : FileNames)
-		{
-			FText OutFailReason;
-			IPluginManager::Get().RemoveFromPluginsList(PluginFileName, &OutFailReason);
-		}
-
 		FText FailReason;
 		// Unmounts and disables the plugin
 		if (IPluginManager::Get().UnmountExplicitlyLoadedPlugin(Package.AssociatedPlugin->GetName(), &FailReason))
@@ -768,6 +724,17 @@ void UUGCSubsystem::UnmountUGCPackage_Internal(FUGCPackage& Package)
 			UE_LOG(LogModioUGC, Error, TEXT("Plugin %s cannot be unloaded: %s"), *Package.AssociatedPlugin->GetName(),
 				   *FailReason.ToString());
 		}
+
+		TArray<FString> FileNames;
+		FPlatformFileManager::Get().GetPlatformFile().FindFilesRecursively(
+			FileNames, *Package.AssociatedPlugin->GetBaseDir(), TEXT(".uplugin"));
+		for (const FString& PluginFileName : FileNames)
+		{
+			FText OutFailReason;
+			IPluginManager::Get().RemoveFromPluginsList(PluginFileName, &OutFailReason);
+		}
+
+		IPluginManager::Get().RefreshPluginsList();
 	#if WITH_EDITOR
 		FPackageName::OnContentPathDismounted() = PathDismountedEvent;
 	#endif
@@ -848,14 +815,4 @@ void UUGCSubsystem::RemoveModEnabledStateChangeHandler(const FModEnabledStateCha
 void UUGCSubsystem::AddModEnabledStateChangeHandler(const FModEnabledStateChangeHandler& Handler)
 {
 	OnModEnabledStateChanged.AddUnique(Handler);
-}
-
-void UUGCSubsystem::SetFilePathSanitizationFn(TFunction<FString(FString&)> InFunc)
-{
-	FilePathSanitizationFn = MoveTemp(InFunc);
-}
-
-void UUGCSubsystem::SetPrepareFilesystemToUsePathFn(TFunction<bool(const FString&)> InFunc)
-{
-	PrepareFilesystemToUsePathFn = MoveTemp(InFunc);
 }

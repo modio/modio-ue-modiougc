@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2025 mod.io Pty Ltd. <https://mod.io>
+ *  Copyright (C) 2025-2026 mod.io Pty Ltd. <https://mod.io>
  *
  *  This file is part of the mod.io ModioUGC Plugin.
  *
@@ -44,11 +44,17 @@ void FModioUGCEditorModule::StartupModule()
 		// Enable unversioned content loading in editor to support loading assets from pak files containing unversioned
 		// assets Setting GAllowUnversionedContentInEditor to 0 occurs by default when bEnableUGCProviderInEditor is
 		// disabled and editor restarted
+		// Equivalent to DefaultEngine.ini setting:
+		// [/Script/UnrealEd.CookerSettings]
+		// s.AllowUnversionedContentInEditor = True
 		GAllowUnversionedContentInEditor = 1;
 
 		// Enable cooked data loading in editor to support loading assets from pak files containing cooked assets
 		// Setting GAllowCookedDataInEditorBuilds reverts to bAllowCookedDataInEditorBuilds config value when
 		// bEnableUGCProviderInEditor is disabled and editor restarted
+		// Equivalent to DefaultEngine.ini setting:
+		// [/Script/UnrealEd.CookerSettings]
+		// cook.AllowCookedDataInEditorBuilds = True
 		GAllowCookedDataInEditorBuilds = 1;
 	}
 
@@ -136,16 +142,7 @@ void FModioUGCEditorModule::TogglePakFileOverride(bool bEnable)
 			{
 				if (UUGCSubsystem* UGCSubsystem = GEngine->GetEngineSubsystem<UUGCSubsystem>())
 				{
-					TArray<FUGCPackage> Packages;
-					UGCSubsystem->EnumerateAllUGCPackages([&Packages](const FUGCPackage& Package) {
-						Packages.Add(Package);
-						return true;
-					});
-
-					for (FUGCPackage& Package : Packages)
-					{
-						UGCSubsystem->UnmountUGCPackage(Package, true);
-					}
+					UGCSubsystem->UnloadAllUGCPackages();
 				}
 			}
 		}

@@ -211,12 +211,8 @@ namespace ModioUGCGenerator.MutatorGenerator
         private static void ParseMacroParameters(UhtParsingScope Scope, UhtModScriptStruct MemberOuter, ref List<UhtProperty> Members)
         {
             //Parse each of the remaining arguments into lists of tokens for later
-            IUhtTokenReader TokenReader = Scope.TokenReader;
             List<List<UhtToken>> MemberTokens = new List<List<UhtToken>>();
-            TokenReader.RequireList(',', ')', ',', false, (IEnumerable<UhtToken> tokens) => 
-            {
-                MemberTokens.Add(tokens.ToList());
-            });
+            GroupMacroParameterTokens(Scope, ref MemberTokens);
 
             //Parameter count error checking
             if (MemberTokens.Count % 2 != 0)
@@ -230,7 +226,8 @@ namespace ModioUGCGenerator.MutatorGenerator
                 //Type info: ParameterInfo[0]
                 //Name: ParameterInfo[1]
 
-                UhtToken NameToken = ParameterInfo.Last().First();
+                var NameAgrumentTokens = ParameterInfo.Last();
+                UhtToken NameToken = NameAgrumentTokens.First();
 
                 UhtPropertySettings MemberPropertySettings = new UhtPropertySettings();
                 MemberPropertySettings.PropertyCategory = UhtPropertyCategory.Member;
@@ -239,7 +236,16 @@ namespace ModioUGCGenerator.MutatorGenerator
                 MemberPropertySettings.LineNumber = NameToken.InputLine;
                 MemberPropertySettings.Outer = MemberOuter;
 
-                //TODO: Handle qualifiers
+                //Parse default parameters
+                int DefaultValueStart = NameAgrumentTokens.FindIndex(Token => Token.Value.ToString() == "=");
+                if (DefaultValueStart >= 0)
+                {
+                    int DefaultValueIndex = DefaultValueStart + 1;
+                    int Count = NameAgrumentTokens.Count();
+                    var DefaultTokens = NameAgrumentTokens.GetRange(DefaultValueIndex, Count - DefaultValueIndex);
+                    MemberPropertySettings.DefaultValueTokens = new List<UhtToken>();
+                    MemberPropertySettings.DefaultValueTokens?.AddRange(DefaultTokens);
+                }
 
                 //The property type might not be available yet. If it isn't then we want to defer the generation on the struct header file to a later parsing phase
                 bool bNeedsResolution = false;
@@ -282,6 +288,79 @@ namespace ModioUGCGenerator.MutatorGenerator
             //Add the return property to the function
 			FunctionOuter.AddChild(StructParamProp);
 		}
+
+        /**
+         * Groups the macro parameter tokens into chunks 
+         * @param Scope the current scope being parsed
+         * @param ParsedTokens the groups of tokens
+         */
+        private static void GroupMacroParameterTokens(UhtParsingScope Scope, ref List<List<UhtToken>> ParsedTokens)
+        {
+            IUhtTokenReader TokenReader = Scope.TokenReader;
+
+            //Check that there are parameters that need to be parsed
+            if(!TokenReader.PeekToken().Value.ToString().Equals(","))
+            {
+                return;
+            }
+
+            //We don't need the leading ',' so we discard it
+            TokenReader.ConsumeToken();
+
+            //Keep track of how deep we are in parsing nested types
+            int ParsingDepth = 0;
+
+            //Keep track of parentheses pairs
+            int ParenthesesDepth = 0;
+
+            List<UhtToken> CurrentTokenGroup = new List<UhtToken>();
+            while(!TokenReader.IsEOF)
+            {
+                var Token = TokenReader.GetToken();
+
+                //We've reached the end of the list so add everything we have gathered and exit the loop
+                if (Token.IsSymbol(')') && ParenthesesDepth == 0)
+                {
+                    ParsedTokens.Add(CurrentTokenGroup);
+                    break;
+                }
+
+                //If the depth is zero we have finished with the current group so add it to the output, otherwise it's part of a type
+                if (Token.IsSymbol(',') && ParsingDepth == 0)
+                {
+                    ParsedTokens.Add(CurrentTokenGroup);
+                    CurrentTokenGroup = new List<UhtToken>();
+                    continue;
+                }
+
+                //If we find tokens for templates adjust the depth accordingly
+                if (Token.IsSymbol('<'))
+                {
+                    ParsingDepth++;
+                }
+
+                if (Token.IsSymbol('>'))
+                {
+                    ParsingDepth--;
+                }
+
+                //If we find tokens for parentheses adjust the depth accordingly
+                if (Token.IsSymbol('('))
+                {
+                    ParenthesesDepth++;
+                }
+
+                if (Token.IsSymbol(')'))
+                {
+                    ParenthesesDepth--;
+                }
+
+                //TODO: Do we need to take into account initialiser lists?
+
+                //Add the token to the current group
+                CurrentTokenGroup.Add(Token);
+            }
+        }
 
         /**
          * Generate a new property from a list of tokens
@@ -437,7 +516,16 @@ namespace ModioUGCGenerator.MutatorGenerator
                             //Forward delcare pointer types
                             borrower.StringBuilder.Append("class ");
                         }
+
                         Member.AppendFullDecl(borrower.StringBuilder, UhtPropertyTextType.Generic);
+                        
+                        //Append any default value tokens
+                        if(Member.DefaultValueTokens != null && Member.DefaultValueTokens.Count() > 0)
+                        {
+                            borrower.StringBuilder.Append(" = ");
+                            borrower.StringBuilder.Append(String.Join("", Member.DefaultValueTokens.Select(Token => Token.Value.ToString())));
+                        }
+                        
                         borrower.StringBuilder.Append(";\r\n");
                         
                     }

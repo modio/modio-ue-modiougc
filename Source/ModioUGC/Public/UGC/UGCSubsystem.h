@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2025 mod.io Pty Ltd. <https://mod.io>
+ *  Copyright (C) 2025-2026 mod.io Pty Ltd. <https://mod.io>
  *
  *  This file is part of the mod.io ModioUGC Plugin.
  *
@@ -209,17 +209,6 @@ public:
 			  Category = "mod.io|UGC|Utilities")
 	TArray<FName> GetPackageNamesFromUGCPackage(const FUGCPackage& UGCPackage) const;
 
-	/**
-	 * Sets a function to sanitize filepaths for UGC packages.
-	*/
-    void SetFilePathSanitizationFn(TFunction<FString(FString&)> InFunc);
-
-	/**
-	 * Sets a function to prepare the filesystem for discovering UGC paths.
-	 * For example, some platforms may require mounting a directory to access its contents
-	 */
-	void SetPrepareFilesystemToUsePathFn(TFunction<bool(const FString&)> InFunc);
-
 protected:
 	//~ Begin IModEnabledStateProvider Interface
 	virtual bool NativeQueryIsModEnabled(FGenericModID ModID) override;
@@ -270,7 +259,7 @@ private:
 	 *
 	 * @param Package The loaded UGC package to unload
 	 */
-	bool UnloadUGC(FUGCPackage Package);
+	bool UnloadUGC(FUGCPackage& Package);
 
 	/**
 	 * Loaded UGC plugin names
@@ -316,15 +305,4 @@ private:
 	 */
 	UPROPERTY()
 	FOnUGCProviderDeinitializedDelegate OnUGCProviderDeinitializedHandler;
-
-	/**
-	 * Function to sanitize file paths for UGC packages
-	 * This should be used to ensure that file paths are valid and follow the expected format of UGC package storage.
-	 */
-	TFunction<FString(FString&)> FilePathSanitizationFn = nullptr;
-
-	/**
-	 * Function to prepare filesystem to discover UGC paths
-	 */
-	TFunction<bool(const FString&)> PrepareFilesystemToUsePathFn = nullptr;
 };

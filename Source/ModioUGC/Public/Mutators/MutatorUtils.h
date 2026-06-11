@@ -15,6 +15,13 @@
 #define MUTATOR_EVENTS_START
 #define MUTATOR_EVENTS_END
 
+#ifndef MUTATOR_CLASS
+#define MUTATOR_CLASS UUGCMutator
+#endif
+
+#ifndef MUTATOR_SUBSYSTEM_CLASS
+#define MUTATOR_SUBSYSTEM_CLASS UUGCMutatorSubsystem
+#endif
 
 /**
  * Helper macro which expands the parameter over each mutator
@@ -56,14 +63,14 @@
  * @param Name Name of the event
  */
 #define IMPLEMENT_MUTATOR_EVENT(Name) \
-MODIOUGC_API void UMutatorSubsystem::Name(F##Name##_Params Params) MUTATOR_ITERATOR(Mutator->Name(Params)) 
+/*MODIOUGC_API*/ void MUTATOR_SUBSYSTEM_CLASS::Name(F##Name##_Params Params) MUTATOR_ITERATOR(static_cast<MUTATOR_CLASS*>(Mutator)->Name(Params)) 
 
 /**
  * Implements a mutator event previously defined in UMutatorSubsystem
  * @param Name Name of the event
  */
 #define IMPLEMENT_MUTATOR_EVENT_RETURN(Name) \
-MODIOUGC_API F##Name##_Params UMutatorSubsystem::Name(F##Name##_Params Params) MUTATOR_ITERATOR_RETURN(Mutator->Name(Result), F##Name##_Params, Params) 
+/*MODIOUGC_API*/ F##Name##_Params MUTATOR_SUBSYSTEM_CLASS::Name(F##Name##_Params Params) MUTATOR_ITERATOR_RETURN(static_cast<MUTATOR_CLASS*>(Mutator)->Name(Result), F##Name##_Params, Params) 
 
 /**
  * Declares a native only mutator event in UMutator

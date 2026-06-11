@@ -22,7 +22,8 @@ public class ModioUGC : ModuleRules
             {
                 "Core",
                 "Modio",
-                "GameplayTags"
+                "GameplayTags",
+                "StructUtils"
             }
         );
 
@@ -65,7 +66,5 @@ public class ModioUGC : ModuleRules
         {
             Path.Combine(ModuleDirectory, "Private")
         });
-
-        //bUseUnity = false;
     }
 }

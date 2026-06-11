@@ -126,8 +126,7 @@ struct MODIOUGC_API FUGCPackage
 	TOptional<FGenericModID> ModID;
 
 	FUGCPackage() {}
-	FUGCPackage(const TSharedRef<IPlugin> Plugin, TOptional<FGenericModID> ModID = {},
-				TFunction<FString(FString&)> FilePathSanitizationFn = nullptr);
+	FUGCPackage(const TSharedRef<IPlugin> Plugin, TOptional<FGenericModID> ModID = {});
 
 	bool operator==(const FUGCPackage& Other) const;
 	bool operator!=(const FUGCPackage& Other) const;

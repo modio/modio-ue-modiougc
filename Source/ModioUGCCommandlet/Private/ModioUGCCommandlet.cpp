@@ -10,6 +10,8 @@
 
 #include "ModioUGCCommandlet.h"
 
+#include "Misc/CommandLine.h"
+
 DEFINE_LOG_CATEGORY(ModioUGCCommandlet);
 
 #define LOCTEXT_NAMESPACE "FModioUGCCommandletModule"

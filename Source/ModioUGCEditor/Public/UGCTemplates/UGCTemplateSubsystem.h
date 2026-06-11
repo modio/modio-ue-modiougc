@@ -67,6 +67,8 @@ public:
 	/** Implement this for deinitialization of instances of the system */
 	virtual void Deinitialize() override;
 
+	static FString FormatLogMessageInternal(const TCHAR* Format, ...);
+
 	//DiscoverTemplates
 	//// Search for templates from Template Sources (TBD)
 	UFUNCTION(BlueprintCallable, Category = "mod.io|Mods|Templates")
@@ -104,6 +106,8 @@ public:
 
 	//UPROPERTY(BlueprintAssignable)
 	FOnTemplateLogMessage OnTemplateLogMessage;
+
+	bool IsValidModName(FString ModName, FString& FailReason);
 
 private:
 
@@ -169,16 +173,9 @@ FString UUGCTemplateSubsystem::FormatLogMessage(const FString& Format, Args&&...
 	FString FormattedMessage;
 	if (Format.Len() > 0)
 	{
-		//int32 Size = snprintf(nullptr, 0, TCHAR_TO_UTF8(*Format), std::forward<Args>(args)...) + 1;
-		int32 Size = swprintf(nullptr, 0, TCHAR_TO_WCHAR(*Format), std::forward<Args>(args)...) + 1;
-		WIDECHAR* Buffer = new WIDECHAR[Size];
-		//snprintf(Buffer, Size, TCHAR_TO_UTF8(*Format), std::forward<Args>(args)...);
-		swprintf(Buffer, Size, TCHAR_TO_WCHAR(*Format), std::forward<Args>(args)...);
-		FormattedMessage = FString(WCHAR_TO_TCHAR(Buffer));
-		delete[] Buffer;
+		return FormatLogMessageInternal(*Format, std::forward<Args>(args)...);
 	}
-
-	return FormattedMessage;
+	return FString();
 }
 
 template<typename... Args>

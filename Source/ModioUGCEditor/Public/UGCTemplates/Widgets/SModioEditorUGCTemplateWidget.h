@@ -37,6 +37,8 @@ public:
 private:
 
 	void LoadResources();
+	void UpdateSources();
+	void NewPluginDetected(IPlugin& NewPlugin);
 	FSlateFontInfo GetTextStyle(FName PropertyName, FName FaceName, int32 Size);
 
 private:
@@ -93,6 +95,8 @@ private:
 	TSharedRef<FUICommandList> LogCommandList;
 
 	FDelegateHandle OnTemplateLogHandle;
+	FDelegateHandle OnPluginCreatedHandle;
+	FDelegateHandle OnPluginMountedHandle;
 
 public:
 	FReply ToModTemplates();

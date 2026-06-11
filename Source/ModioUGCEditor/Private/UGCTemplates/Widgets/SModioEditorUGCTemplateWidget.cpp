@@ -10,6 +10,7 @@
 #include "UGCTemplates/Widgets/SUGCTemplateSubsitutionWidget.h"
 #include "UGCTemplates/UGCTemplateDescriptor.h"
 #include "../Private/SDetailsView.h"
+#include "Interfaces/IPluginManager.h"
 
 #define LOCTEXT_NAMESPACE "ModioEditorUGCTemplateWidget"
 
@@ -43,12 +44,11 @@ void SModioEditorUGCTemplateWidget::Construct(const FArguments& InArgs)
 
 	auto TemplateSubsystem = GEditor->GetEditorSubsystem<UUGCTemplateSubsystem>();
 	OnTemplateLogHandle = TemplateSubsystem->OnTemplateLogMessage.AddRaw(this, &SModioEditorUGCTemplateWidget::AddMessageToLog);
-	TemplateSubsystem->DiscoverUGC(UGCPlugins);
-	TemplateSubsystem->DiscoverTemplates(Templates);
-	UGCPluginsOptions = ConvertToOptionsSource(UGCPlugins);
-	TemplatesOptions = ConvertToOptionsSource(Templates);
-	ItemTemplatesOptions = TemplatesOptions.FilterByPredicate([](const TSharedPtr<FUGCTemplateInfo>& Key) -> bool { return Key->Descriptor->Type == EUGCTemplateType::TT_Item; });
-	ModTemplatesOptions  = TemplatesOptions.FilterByPredicate([](const TSharedPtr<FUGCTemplateInfo>& Key) -> bool { return Key->Descriptor->Type == EUGCTemplateType::TT_Mod; });
+	UpdateSources();
+
+	IPluginManager& PluginManager = IPluginManager::Get();
+	OnPluginCreatedHandle = PluginManager.OnNewPluginCreated().AddRaw(this, &SModioEditorUGCTemplateWidget::NewPluginDetected);
+	OnPluginMountedHandle = PluginManager.OnNewPluginMounted().AddRaw(this, &SModioEditorUGCTemplateWidget::NewPluginDetected);
 
 	ExportDescriptor = NewObject<UUGCTemplateDescriptor>();
 	//ExportDescriptor = MakeShareable(NewObject<UUGCTemplateDescriptor>());
@@ -310,6 +310,12 @@ void SModioEditorUGCTemplateWidget::Construct(const FArguments& InArgs)
 								+SStackBox::Slot()
 								[
 									SAssignNew(NewModNameInput, SEditableTextBox)
+									.OnTextChanged(FOnTextChanged::CreateLambda([this, &TemplateSubsystem](const FText& InText)
+									{
+										FString FailReason;
+										TemplateSubsystem->IsValidModName(InText.ToString(), FailReason);
+										NewModNameInput->SetError(FailReason);
+									}))
 								]
 							]
 						]
@@ -361,14 +367,15 @@ void SModioEditorUGCTemplateWidget::Construct(const FArguments& InArgs)
 						[
 							SNew(SButton)
 							.Text(LOCTEXT("Next", "Next"))
-							.IsEnabled_Lambda([this]()
+							.IsEnabled_Lambda([this, &TemplateSubsystem]()
 								{
 									if (CreateModTemplateSelectionBox->GetSelectedItem() == nullptr)
 									{
 										return false;
 									}
 
-									if (NewModNameInput->GetText().IsEmptyOrWhitespace())
+									FString FailReason;
+									if (!TemplateSubsystem->IsValidModName(NewModNameInput->GetText().ToString(), FailReason))
 									{
 										return false;
 									}
@@ -493,6 +500,10 @@ void SModioEditorUGCTemplateWidget::TearDown()
 {
 	auto TemplateSubsystem = GEditor->GetEditorSubsystem<UUGCTemplateSubsystem>();
 	TemplateSubsystem->OnTemplateLogMessage.Remove(OnTemplateLogHandle);
+
+	IPluginManager& PluginManager = IPluginManager::Get();
+	PluginManager.OnNewPluginCreated().Remove(OnPluginCreatedHandle);
+	PluginManager.OnNewPluginMounted().Remove(OnPluginMountedHandle);
 }
 
 void SModioEditorUGCTemplateWidget::LoadResources()
@@ -518,6 +529,26 @@ void SModioEditorUGCTemplateWidget::LoadResources()
 	HeaderSmallTextStyle = GetTextStyle("EmbossedText", "Normal", 11);
 
 	ButtonTextStyle = GetTextStyle("EmbossedText", "Normal", 10);
+}
+
+void SModioEditorUGCTemplateWidget::UpdateSources()
+{
+	//Clear any cached data
+	UGCPlugins.Empty();
+	Templates.Empty();
+
+	auto TemplateSubsystem = GEditor->GetEditorSubsystem<UUGCTemplateSubsystem>();
+	TemplateSubsystem->DiscoverUGC(UGCPlugins);
+	TemplateSubsystem->DiscoverTemplates(Templates);
+	UGCPluginsOptions = ConvertToOptionsSource(UGCPlugins);
+	TemplatesOptions = ConvertToOptionsSource(Templates);
+	ItemTemplatesOptions = TemplatesOptions.FilterByPredicate([](const TSharedPtr<FUGCTemplateInfo>& Key) -> bool {	return Key->Descriptor->Type == EUGCTemplateType::TT_Item; });
+	ModTemplatesOptions = TemplatesOptions.FilterByPredicate([](const TSharedPtr<FUGCTemplateInfo>& Key) -> bool { return Key->Descriptor->Type == EUGCTemplateType::TT_Mod; });
+}
+
+void SModioEditorUGCTemplateWidget::NewPluginDetected(IPlugin& NewPlugin)
+{
+	UpdateSources();
 }
 
 FSlateFontInfo SModioEditorUGCTemplateWidget::GetTextStyle(FName PropertyName, FName FaceName, int32 Size)
@@ -628,7 +659,7 @@ FReply SModioEditorUGCTemplateWidget::OnClickedExport()
 	auto TemplateSubsystem = GEditor->GetEditorSubsystem<UUGCTemplateSubsystem>();
 
 	FUGCPluginInfo PluginToExport = *(TemplateExportSelectionBox->GetSelectedItem());
-	TemplateSubsystem->ExportUGCTemplate(PluginToExport, ExportDescriptor, true);
+	TemplateSubsystem->ExportUGCTemplate(PluginToExport, ExportDescriptor, false);
 	return FReply::Handled();
 }
 
