@@ -2,7 +2,14 @@
 
 
 #include "UGCTemplates/Widgets/SUGCTemplateSubsitutionWidget.h"
+#include "Runtime/Launch/Resources/Version.h"
 #include "SlateOptMacros.h"
+#include "Widgets/SOverlay.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Text/STextBlock.h"
+#include "Widgets/Input/SEditableTextBox.h"
+#include "Editor.h"
 
 #define LOCTEXT_NAMESPACE "ModioEditorUGCTemplateWidget"
 

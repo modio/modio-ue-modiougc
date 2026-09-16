@@ -16,6 +16,8 @@ public class ModioUGC : ModuleRules
     public ModioUGC(ReadOnlyTargetRules Target) : base(Target)
     {
         PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+        IWYUSupport = IWYUSupport.Full;
+        CppStandard = CppStandardVersion.EngineDefault;
 
         PublicDependencyModuleNames.AddRange(
             new string[]
@@ -23,7 +25,6 @@ public class ModioUGC : ModuleRules
                 "Core",
                 "Modio",
                 "GameplayTags",
-                "StructUtils"
             }
         );
 

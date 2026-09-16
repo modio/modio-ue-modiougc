@@ -9,6 +9,7 @@
 #include "UGCTemplates/UGCTemplateDescriptor.h"
 #include "UGCTemplates/UGCTemplateSubsystem.h"
 #include "ModioUGCEditor.h"
+#include "Editor.h"
 
 #define LOCTEXT_NAMESPACE "SModioExportUGCTemplateWidget"
 

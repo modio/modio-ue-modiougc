@@ -24,6 +24,23 @@ namespace ModioUGCGenerator.MutatorGenerator
         public bool bNeedsResolution { get; set; } = false;
         public UHTManifest.Module? ModModule { get; set; } = null;
 
+#if UE_5_8_OR_LATER
+        private string? ModModuleName { get; set; } = null;
+
+        public UhtModScriptStruct(UhtInputCacheReader reader, UhtType outer)
+        : base(reader, outer)
+        {
+            bNeedsResolution = reader.ReadBoolean();
+            ModModuleName = reader.ReadOptionalString();
+        }
+
+        public override void Write(UhtInputCacheWriter writer)
+        {
+            base.Write(writer);
+            writer.WriteBoolean(bNeedsResolution);
+            writer.WriteOptionalString(ModModule?.Name ?? ModModuleName);
+        }
+#endif
 #if UE_5_7_OR_LATER
         public UhtModScriptStruct(UhtHeaderFile HeaderFile, UhtNamespace NamespaceObj, UhtType Outer, int LineNumber)
         : base(HeaderFile, NamespaceObj, Outer, LineNumber)
@@ -48,6 +65,19 @@ namespace ModioUGCGenerator.MutatorGenerator
             //If this struct header generation has been deferred write it out now
             if(resolvePhase == UhtResolvePhase.Final && bNeedsResolution)
             {
+#if UE_5_8_OR_LATER
+                if (ModModule == null && !String.IsNullOrEmpty(ModModuleName))
+                {
+                    foreach (UHTManifest.Module module in Session.Manifest!.Modules)
+                    {
+                        if (String.Equals(module.Name, ModModuleName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            ModModule = module;
+                            break;
+                        }
+                    }
+                }
+#endif
                 UhtMutatorGenerator.WriteStructInclude(ModModule!, this);
             }
 

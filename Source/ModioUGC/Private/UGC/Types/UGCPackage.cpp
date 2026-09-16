@@ -12,6 +12,7 @@
 
 #include "AssetRegistry/AssetRegistryState.h"
 #include "Engine/AssetManager.h"
+#include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
 #include "IPlatformFilePak.h"
 #include "Interfaces/IPluginManager.h"
@@ -174,7 +175,12 @@ bool FUGCPackage::UnloadAssets()
 						}
 						return true;
 					},
-					true, RF_NoFlags, EInternalObjectFlags::None);
+#if ENGINE_MAJOR_VERSION >= 5 && ENGINE_MINOR_VERSION >= 8
+					EGetObjectsFlags::IncludeNestedObjects,
+#else
+					true,
+#endif
+					RF_NoFlags, EInternalObjectFlags::None);
 
 				UE_LOG(LogModioUGC, VeryVerbose, TEXT("Marked package '%s' and its objects for garbage collection"),
 					   *PackageName.ToString());
@@ -201,7 +207,29 @@ bool FUGCPackage::LoadAssets()
 
 bool FUGCPackage::LoadAssetRegistry()
 {
-	const FString AssetRegistryFilePath = PackagePath / TEXT("AssetRegistry.bin");
+	FString AssetRegistryFilePath = TEXT("");
+
+	TArray<FString> FoundFiles;
+	IFileManager::Get().FindFilesRecursive(FoundFiles, *PackagePath, TEXT("AssetRegistry.bin"), true, false);
+	if (FoundFiles.IsEmpty()) 
+	{
+		UE_LOG(LogModioUGC, Error, TEXT("Failed to find AssetRegistry.bin for UGC package %s"), *FriendlyName);
+		return false;
+	}
+
+	if (FoundFiles.Num() > 1) 
+	{
+		UE_LOG(LogModioUGC, Warning, TEXT("Multiple asset registry files found for UGC package %s"), *FriendlyName);
+	}
+
+	AssetRegistryFilePath = FoundFiles[0];
+
+	if (AssetRegistryFilePath.IsEmpty())
+	{
+		UE_LOG(LogModioUGC, Error, TEXT("Failed to find AssetRegistry.bin for UGC package %s"), *FriendlyName);
+		return false;
+	}
+
 	FAssetRegistryState PluginAssetRegistry;
 	if (FAssetRegistryState::LoadFromDisk(*AssetRegistryFilePath, FAssetRegistryLoadOptions(), PluginAssetRegistry))
 	{

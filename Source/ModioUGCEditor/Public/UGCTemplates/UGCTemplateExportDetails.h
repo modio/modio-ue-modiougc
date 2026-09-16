@@ -11,6 +11,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Interfaces/IPluginManager.h"
 #include "UObject/NoExportTypes.h"
 #include "UGCTemplateSubsystem.h"
 #include "UGCTemplateExportDetails.generated.h"

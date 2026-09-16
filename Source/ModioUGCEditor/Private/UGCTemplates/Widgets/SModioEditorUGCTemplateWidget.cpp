@@ -2,6 +2,7 @@
 
 
 #include "UGCTemplates/Widgets/SModioEditorUGCTemplateWidget.h"
+#include "Runtime/Launch/Resources/Version.h"
 #include "SlateOptMacros.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/Input/SComboBox.h"
@@ -18,6 +19,9 @@
 #include "Editor/ContentBrowser/Public/ContentBrowserModule.h"
 #include "Editor/ContentBrowser/Public/IContentBrowserSingleton.h"
 #include "ModioUGCEditor.h"
+#include "Editor.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
 
 #define LOCTEXT_NAMESPACE "ModioEditorUGCTemplateWidget"
 
@@ -207,7 +211,7 @@ void SModioEditorUGCTemplateWidget::LoadResources()
 	PanelBackgroundBrush->TintColor = FLinearColor(0.015f, 0.015f, 0.015f, 1.f);
 
 	BoldSeperatorBrush = new FSlateBrush();
-	BoldSeperatorBrush->TintColor = FLinearColor(0.05, 0.05, 0.05, 1.0f);
+	BoldSeperatorBrush->TintColor = FLinearColor(0.05f, 0.05f, 0.05f, 1.0f);
 
 	BackgroundBrush = new FSlateBrush();
 #if ENGINE_MAJOR_VERSION >= 5

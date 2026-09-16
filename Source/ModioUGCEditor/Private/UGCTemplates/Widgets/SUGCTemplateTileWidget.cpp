@@ -2,7 +2,14 @@
 
 
 #include "UGCTemplates/Widgets/SUGCTemplateTileWidget.h"
+#include "Runtime/Launch/Resources/Version.h"
 #include "SlateOptMacros.h"
+#include "Engine/Texture2D.h"
+#include "Widgets/SOverlay.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Text/STextBlock.h"
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void SUGCTemplateTileWidget::Construct(const FArguments& InArgs)

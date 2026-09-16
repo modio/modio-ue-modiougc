@@ -3,6 +3,7 @@
 
 #include "UGCTemplates/UGCTemplateDescriptor.h"
 #include "JsonObjectConverter.h"
+#include "Misc/FileHelper.h"
 
 
 const FString UUGCTemplateDescriptor::VersionFieldName = "Version";

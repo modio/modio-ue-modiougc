@@ -6,6 +6,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "../../Slate/Public/Widgets/Input/SSegmentedControl.h"
 #include "../UGCTemplateDescriptor.h"
+#include "Interfaces/IPluginManager.h"
 
 
 /**

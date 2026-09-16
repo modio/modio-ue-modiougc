@@ -7,6 +7,9 @@
 #include "UGCTemplates/UGCTemplateDescriptor.h"
 #include "../../SlateCore/Public/Types/SlateStructs.h"
 #include "../../Engine/Public/Slate/DeferredCleanupSlateBrush.h"
+#include "Styling/CoreStyle.h"
+#include "Widgets/SBoxPanel.h"
+#include "Engine/Texture2D.h"
 
 #define LOCTEXT_NAMESPACE "SUGCTemplateDetailsWidget"
 

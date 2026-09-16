@@ -9,6 +9,12 @@
 #include "UGCTemplates/UGCTemplateSubsystem.h"
 #include "Interfaces/IPluginManager.h"
 #include "UGCTemplates/UGCTemplateExportDetails.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Text/STextBlock.h"
+
+#ifdef WITH_EDITOR
+#include "Editor.h"
+#endif
 
 #define LOCTEXT_NAMESPACE "FUGCTemplateExportCustomisation"
 

@@ -12,8 +12,12 @@
 
 #include "CoreMinimal.h"
 #include "Editor/PropertyEditor/Public/IDetailCustomization.h"
+#include "Interfaces/IPluginManager.h"
+#include "Types/SlateEnums.h"
 #include "UGCTemplates/UGCTemplateSubsystem.h"
 #include "UGCTemplateSettings.h"
+#include "Widgets/Input/SComboBox.h"
+#include "Widgets/SWidget.h"
 
 /**
  * 

@@ -65,7 +65,7 @@ public:
 
 		FEngineVersion CurrentEngineVersion = FEngineVersion::Current();
 		UE_LOG(LogModioUGC, VeryVerbose, TEXT("Checking incoming version '%s' against current engine '%s'."),
-			   *CurrentEngineVersion.ToString(), *EngineVersion.ToString());
+			   *EngineVersion.ToString(), *CurrentEngineVersion.ToString());
 
 		auto IsComponentEqual = [&EngineVersion, &CurrentEngineVersion](const FString& VersionComponentName, EVersionComponent VersionComponent) -> bool {
 			FString EngineComponent = CurrentEngineVersion.ToString(VersionComponent);

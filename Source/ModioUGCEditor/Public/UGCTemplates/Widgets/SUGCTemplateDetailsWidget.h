@@ -14,6 +14,9 @@
 #include "Widgets/SCompoundWidget.h"
 #include "SUGCTemplateSubsitutionWidget.h"
 #include "../../Engine/Public/Slate/DeferredCleanupSlateBrush.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Text/STextBlock.h"
+#include "Widgets/Layout/SBox.h"
 
 /**
  * 

@@ -11,6 +11,9 @@
 #include "UGC/UGCSubsystem.h"
 #include "Misc/EngineVersionComparison.h"
 #include "ModioUGC.h"
+#if WITH_EDITOR
+	#include "Editor.h"
+#endif
 #if UGC_SUPPORTED_PLATFORM
 	#if MODIO_UGC_SUPPORTED_PLATFORM
 		#include "ModioSubsystem.h"
@@ -204,7 +207,7 @@ bool UUGCSubsystem::IsProviderEnabled()
 	return false;
 }
 
-void UUGCSubsystem::RefreshUGC()
+void UUGCSubsystem::RefreshUGC(bool bUnloadAll)
 {
 #if UGC_SUPPORTED_PLATFORM
 	// Do nothing if we are cooking or running a commandlet
@@ -225,6 +228,7 @@ void UUGCSubsystem::RefreshUGC()
 		return;
 	}
 
+	if (bUnloadAll)
 	{
 		TArray<FUGCPackage> InternalUGCPackages = UGCPackages.Array();
 

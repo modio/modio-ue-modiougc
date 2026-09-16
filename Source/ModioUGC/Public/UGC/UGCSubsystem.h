@@ -66,9 +66,11 @@ public:
 	/**
 	 * Scans for any unregistered UGC plugins and adds them to the internal registry
 	 * Will emit a UGCChanged event if any new UGC plugins were added
+	 * 
+	 * @param bUnloadAll If true, will unload all UGC packages loading them again
 	 */
 	UFUNCTION(BlueprintCallable, Category = "mod.io|UGC")
-	void RefreshUGC();
+	void RefreshUGC(bool bUnloadAll = true);
 
 	/**
 	 * Gets the UGC package associated with the provided mod ID

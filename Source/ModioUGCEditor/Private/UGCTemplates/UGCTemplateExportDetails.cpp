@@ -2,6 +2,7 @@
 
 
 #include "UGCTemplates/UGCTemplateExportDetails.h"
+#include "Misc/Paths.h"
 
 UUGCTemplateExportDetails::UUGCTemplateExportDetails()
 {

@@ -18,6 +18,7 @@
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
 #include "Widgets/Input/STextComboBox.h"
 #include "Widgets/SModioEditorWindowCompoundWidget.h"
+#include "Misc/DataDrivenPlatformInfoRegistry.h"
 
 #define LOCTEXT_NAMESPACE "ModioEditorCreateUGCWidget"
 

@@ -22,6 +22,9 @@
 #include "UObject/SavePackage.h"
 #include "UGCTemplates/UGCTemplateSettings.h"
 #include "../../Engine/Public/ImageUtils.h"
+#include "HAL/FileManager.h"
+#include "HAL/PlatformFileManager.h"
+#include "Misc/FileHelper.h"
 
 DEFINE_LOG_CATEGORY(LogModioUGCTemplates)
 

@@ -9,6 +9,7 @@
  */
 
 #include "ModioUGCEditor.h"
+#include "Runtime/Launch/Resources/Version.h"
 
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "IPlatformFilePak.h"
@@ -30,6 +31,7 @@
 #include "Editor/ContentBrowser/Private/SContentBrowser.h"
 #include "Editor/ContentBrowser/Public/ContentBrowserModule.h"
 #include "Interfaces/IPluginManager.h"
+#include "PropertyEditorModule.h"
 
 DEFINE_LOG_CATEGORY(ModioUGCEditor);
 
@@ -191,7 +193,7 @@ void FModioUGCEditorModule::RegisterSettings()
 #if WITH_EDITOR
 	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
 	{
-		SettingsModule->RegisterSettings("Project", "Plugins", "mod.io", LOCTEXT("UGCTemplateSettingsName", "mod.io UGC Templates"),
+		SettingsModule->RegisterSettings("Project", "Plugins", "mod.io UGC Templates", LOCTEXT("UGCTemplateSettingsName", "mod.io UGC Templates"),
 										 LOCTEXT("UGCTemplateSettingsDescription", "Configure the mod.io UGC Template settings"),
 										 GetMutableDefault<UUGCTemplateSettings>());
 	}
@@ -203,7 +205,7 @@ void FModioUGCEditorModule::UnregisterSettings()
 #if WITH_EDITOR
 	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
 	{
-		SettingsModule->UnregisterSettings("Project", "Plugins", "mod.io");
+		SettingsModule->UnregisterSettings("Project", "Plugins", "mod.io UGC Templates");
 	}
 #endif // WITH_EDITOR
 }

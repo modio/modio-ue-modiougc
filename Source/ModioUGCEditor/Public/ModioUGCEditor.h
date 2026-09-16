@@ -11,8 +11,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Interfaces/IPluginManager.h"
 #include "ModioUGCPackager.h"
 #include "Modules/ModuleManager.h"
+#include "PropertyEditorModule.h"
 #include "Slate.h"
 #include "UGCTemplates/UGCTemplateDescriptor.h"
 

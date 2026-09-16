@@ -12,6 +12,7 @@
 
 #include "CoreMinimal.h"
 #include "EditorSubsystem.h"
+#include "Interfaces/IPluginManager.h"
 #include "UObject/CoreRedirects.h"
 #include "UGCTemplateSubsystem.generated.h"
 

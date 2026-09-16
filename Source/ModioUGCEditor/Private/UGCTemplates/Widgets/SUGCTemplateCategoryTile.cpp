@@ -6,6 +6,11 @@
 #include "SlateOptMacros.h"
 #include "../../Engine/Public/Slate/DeferredCleanupSlateBrush.h"
 #include "../../SlateCore/Public/Brushes/SlateDynamicImageBrush.h"
+#include "Engine/Texture2D.h"
+#include "Widgets/SOverlay.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SUGCTemplateCategoryTile"
 

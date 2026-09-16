@@ -18,6 +18,12 @@
 #include "SUGCTemplateCategoryTile.h"
 #include "../UGCTemplateSettings.h"
 #include "../../Slate/Public/Widgets/Views/STileView.h"
+#include "Framework/Commands/Commands.h"
+#include "Framework/Commands/UICommandList.h"
+#include "Types/SlateEnums.h"
+#include "Widgets/Text/STextBlock.h"
+#include "Widgets/Input/SComboBox.h"
+#include "Widgets/Input/SEditableTextBox.h"
 
 class FModioEditorUGCTemplateWidgetCommands : public TCommands<FModioEditorUGCTemplateWidgetCommands>
 {

@@ -26,6 +26,9 @@
 #include "Widgets/Input/SDirectoryPicker.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
 #include "Widgets/Notifications/SNotificationList.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SSeparator.h"
+#include "Misc/MessageDialog.h"
 
 #define LOCTEXT_NAMESPACE "ModioEditorCreateUGCWidget"
 

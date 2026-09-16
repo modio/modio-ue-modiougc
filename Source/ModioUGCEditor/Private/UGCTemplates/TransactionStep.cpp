@@ -2,8 +2,11 @@
 
 
 #include "UGCTemplates/TransactionStep.h"
+#include "Editor.h"
 #include "FileHelpers.h"
+#include "HAL/FileManager.h"
 #include "Interfaces/IPluginManager.h"
+#include "Misc/Paths.h"
 #include "../Plugins/Developer/PluginUtils/Source/PluginUtils/Public/PluginUtils.h"
 #include "Subsystems/EditorAssetSubsystem.h"
 

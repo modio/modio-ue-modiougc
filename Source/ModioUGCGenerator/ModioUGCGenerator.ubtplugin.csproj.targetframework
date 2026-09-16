@@ -1,0 +1,17 @@
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- 
+    Unreal doesn't provide a good way of automatically supporting the relevant TargetFramework.
+	As of 5.8 we no longer activly support anything older than 5.6, so our baseline .net version is net8.0
+	So we check UBT's project.assets.json for a specific .net version via regex, if we don't find one
+	we fallback to .net8.0
+  -->
+  <PropertyGroup>
+    <_UbtCsprojPath>$(EngineDir)\Source\Programs\UnrealBuildTool\obj\project.assets.json</_UbtCsprojPath>
+    <_UbtCsprojContent Condition="Exists('$(_UbtCsprojPath)')">$([System.IO.File]::ReadAllText('$(_UbtCsprojPath)'))</_UbtCsprojContent>
+    <_UbtTargetFramework>$([System.Text.RegularExpressions.Regex]::Match($(_UbtCsprojContent), `\"targets\"\: {(\r\n|\r|\n)+[ \t]+\"(.*?)\"`).Groups[2].Value)</_UbtTargetFramework>
+  </PropertyGroup>
+  <PropertyGroup>
+    <TargetFramework Condition="'$(_UbtTargetFramework)' != ''">$(_UbtTargetFramework)</TargetFramework>
+    <TargetFramework Condition="'$(_UbtTargetFramework)' == ''">net8.0</TargetFramework>
+  </PropertyGroup>
+</Project>

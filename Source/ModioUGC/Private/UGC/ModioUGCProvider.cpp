@@ -119,6 +119,24 @@ FModUGCPathMap UModioUGCProvider::GetInstalledUGCPaths_Implementation()
 					   *Mod.Value.GetPath());
 				UGCPathsToModIDs.Add(Mod.Value.GetPath(), FGenericModID(GetUnderlyingValue(Mod.Key)));
 			}
+
+			TMap<FModioModID, FModioModCollectionEntry> TempMods = Subsystem->QueryTempModSet();
+			for (const TPair<FModioModID, FModioModCollectionEntry>& Mod : TempMods)
+			{
+				UE_LOG(LogModioUGC, Log, TEXT("Found temp mod '%lld' at path '%s'"), GetUnderlyingValue(Mod.Key),
+					   *Mod.Value.GetPath());
+				UGCPathsToModIDs.Add(Mod.Value.GetPath(), FGenericModID(GetUnderlyingValue(Mod.Key)));
+			}
+
+			#if UE_SERVER
+			TMap<FModioModID, FModioModCollectionEntry> SystemMods = Subsystem->QuerySystemInstallations();
+			for (const TPair<FModioModID, FModioModCollectionEntry>& Mod : SystemMods)
+			{
+				UE_LOG(LogModioUGC, Log, TEXT("Found system mod '%lld' at path '%s'"), GetUnderlyingValue(Mod.Key),
+					   *Mod.Value.GetPath());
+				UGCPathsToModIDs.Add(Mod.Value.GetPath(), FGenericModID(GetUnderlyingValue(Mod.Key)));
+			}
+			#endif
 		}
 	}
 	return FModUGCPathMap(MoveTemp(UGCPathsToModIDs));
